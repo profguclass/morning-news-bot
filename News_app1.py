@@ -1,126 +1,116 @@
 import requests
 from bs4 import BeautifulSoup
 import streamlit as st
-from urllib.parse import urlparse, urlunparse # URL 정리를 위해 추가
+from urllib.parse import urlparse, urlunparse
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 }
 
-# --- 보조 함수: URL을 깔끔하게 정리 ---
-def clean_wsj_url(raw_url):
+# --- 보조 함수: 스마트폰 앱 연동을 위한 URL 정리 ---
+def clean_news_url(raw_url):
     """
-    RSS 피드의 URL에 붙은 통계용 파라미터(?mod=...)를 제거하여
-    스마트폰 OS가 WSJ 앱을 더 쉽게 인식하고 열 수 있도록 순수 주소만 반환합니다.
+    RSS 피드의 URL에 붙은 통계용 파라미터를 제거하여
+    스마트폰 OS가 해당 신문사 앱(NYT, WSJ 등)을 직접 열 수 있도록 돕습니다.
     """
     parsed = urlparse(raw_url)
-    # scheme(https), netloc(www.wsj.com), path(/articles/...)만 남기고 나머지는 비움
-    clean = urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
-    return clean
+    return urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
 
-# --- 데이터 수집 함수들 ---
-
-def get_wsj_top_news(limit=10):
-    url = "https://feeds.a.dj.com/rss/WSJcomUSBusiness.xml"
+# --- 통합 RSS 수집 함수 ---
+def get_rss_news(url, limit=10, do_clean_url=False):
+    """
+    RSS 피드 주소를 입력받아 제목과 링크를 리스트로 반환하는 만능 함수입니다.
+    """
     news_list = []
     try:
-        res = requests.get(url, headers=HEADERS)
+        res = requests.get(url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(res.content, features="xml")
         items = soup.find_all('item')[:limit]
         
         for item in items:
+            title = item.title.text if item.title else "제목 없음"
             raw_link = item.link.text if item.link else "#"
-            news_list.append({
-                'title': item.title.text if item.title else "제목 없음",
-                'link': clean_wsj_url(raw_link), # 정리된 URL 적용
-                'desc': item.description.text if item.description else "요약 없음"
-            })
-    except Exception as e:
-        st.error(f"WSJ 글로벌 뉴스 수집 오류: {e}")
-    return news_list
-
-def get_wsj_east_asia_news(limit=10):
-    url = "https://feeds.a.dj.com/rss/RSSWorldNews.xml"
-    news_list = []
-    try:
-        res = requests.get(url, headers=HEADERS)
-        soup = BeautifulSoup(res.content, features="xml")
-        items = soup.find_all('item')
-        keywords = ['china', 'japan', 'korea', 'beijing', 'tokyo', 'seoul', 'chinese', 'japanese', 'korean', 'taiwan']
-        
-        for item in items:
-            if len(news_list) >= limit:
-                break
-            title = item.title.text if item.title else ""
-            desc = item.description.text if item.description else ""
-            raw_link = item.link.text if item.link else "#"
+            link = clean_news_url(raw_link) if do_clean_url else raw_link
             
-            if any(keyword in (title + " " + desc).lower() for keyword in keywords):
-                news_list.append({
-                    'title': title, 
-                    'link': clean_wsj_url(raw_link), # 정리된 URL 적용
-                    'desc': desc
-                })
+            news_list.append({'title': title, 'link': link})
     except Exception as e:
-        st.error(f"WSJ 동아시아 뉴스 수집 오류: {e}")
-    return news_list
-
-def get_domestic_top_news(limit=10):
-    url = "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko"
-    news_list = []
-    try:
-        res = requests.get(url, headers=HEADERS)
-        soup = BeautifulSoup(res.content, features="xml")
-        items = soup.find_all('item')[:limit]
-        
-        for item in items:
-            news_list.append({
-                'title': item.title.text if item.title else "제목 없음",
-                'link': item.link.text if item.link else "#" # 구글 뉴스는 앱 연결이 필수적이지 않으므로 원본 유지
-            })
-    except Exception as e:
-        st.error(f"국내 주요 뉴스 수집 오류: {e}")
+        st.error(f"뉴스 수집 오류 ({url}): {e}")
     return news_list
 
 
-# --- Streamlit 화면 구성 (웹 앱 UI) ---
-# (이하 기존 코드와 동일합니다)
+# --- Streamlit 화면 구성 ---
+st.set_page_config(page_title="데일리 뉴스 브리핑", page_icon="📰", layout="wide")
 
-st.set_page_config(page_title="나만의 뉴스 브리핑", page_icon="📰", layout="wide")
-
-st.title("📰 Morning News Dashboard")
-st.markdown("매일 아침 업데이트되는 글로벌 경제와 국내외 주요 이슈입니다.")
+st.title("📰 Daily News Dashboard")
 
 if st.button("🔄 최신 뉴스 다시 불러오기"):
     st.cache_data.clear()
 
+# 각 언론사의 RSS 주소 모음
+URLS = {
+    "nyt_top": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
+    "nyt_op": "https://rss.nytimes.com/services/xml/rss/nyt/Opinion.xml",
+    "wsj_top": "https://feeds.a.dj.com/rss/RSSWorldNews.xml",
+    "wsj_op": "https://feeds.a.dj.com/rss/RSSOpinion.xml",
+    "kr_top": "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",
+    "kr_eco": "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ko&gl=KR&ceid=KR:ko"
+}
+
 @st.cache_data(ttl=3600)
 def fetch_all_news():
-    return get_wsj_top_news(10), get_wsj_east_asia_news(10), get_domestic_top_news(10)
+    # NYT, WSJ는 앱 연동을 위해 URL 클리닝(True) 적용, 구글뉴스는 원본 유지(False)
+    nyt_news = get_rss_news(URLS["nyt_top"], 10, True)
+    nyt_opinion = get_rss_news(URLS["nyt_op"], 5, True) # 오피니언은 5건으로 조정 (필요시 10으로 변경 가능)
+    
+    wsj_news = get_rss_news(URLS["wsj_top"], 10, True)
+    wsj_opinion = get_rss_news(URLS["wsj_op"], 5, True)
+    
+    kr_news = get_rss_news(URLS["kr_top"], 10, False)
+    kr_economy = get_rss_news(URLS["kr_eco"], 10, False)
+    
+    return nyt_news, nyt_opinion, wsj_news, wsj_opinion, kr_news, kr_economy
 
-with st.spinner("인터넷에서 최신 뉴스를 수집하고 있습니다. 잠시만 기다려주세요..."):
-    wsj_global, wsj_asia, domestic = fetch_all_news()
+with st.spinner("최신 뉴스와 오피니언을 수집하고 있습니다..."):
+    nyt_n, nyt_o, wsj_n, wsj_o, kr_n, kr_e = fetch_all_news()
 
+# 3단으로 화면 분할
 col1, col2, col3 = st.columns(3)
 
+# 1. New York Times 단
 with col1:
-    st.header("🌍 WSJ 글로벌 비즈")
-    for i, news in enumerate(wsj_global, 1):
-        st.markdown(f"**{i}. [{news['title']}]({news['link']})**")
-        st.caption(news['desc'])
-        st.divider()
+    st.header("🗽 New York Times")
+    st.subheader("Top Stories")
+    for news in nyt_n:
+        st.markdown(f"- [{news['title']}]({news['link']})")
+    
+    st.divider()
+    
+    st.subheader("Opinion")
+    for op in nyt_o:
+        st.markdown(f"- [{op['title']}]({op['link']})")
 
+# 2. Wall Street Journal 단
 with col2:
-    st.header("⛩️ WSJ 동아시아")
-    if not wsj_asia:
-        st.info("현재 한·중·일 관련 주요 기사가 없습니다.")
-    for i, news in enumerate(wsj_asia, 1):
-        st.markdown(f"**{i}. [{news['title']}]({news['link']})**")
-        st.caption(news['desc'])
-        st.divider()
+    st.header("📈 Wall Street Journal")
+    st.subheader("Top Stories")
+    for news in wsj_n:
+        st.markdown(f"- [{news['title']}]({news['link']})")
+    
+    st.divider()
+    
+    st.subheader("Opinion")
+    for op in wsj_o:
+        st.markdown(f"- [{op['title']}]({op['link']})")
 
+# 3. 국내 종합 및 경제 뉴스 단
 with col3:
-    st.header("🇰🇷 국내 종합 뉴스")
-    for i, news in enumerate(domestic, 1):
-        st.markdown(f"**{i}. [{news['title']}]({news['link']})**")
-        st.divider()
+    st.header("🇰🇷 국내 주요 뉴스")
+    st.subheader("종합 뉴스")
+    for news in kr_n:
+        st.markdown(f"- [{news['title']}]({news['link']})")
+    
+    st.divider()
+    
+    st.subheader("경제 뉴스")
+    for news in kr_e:
+        st.markdown(f"- [{news['title']}]({news['link']})")
