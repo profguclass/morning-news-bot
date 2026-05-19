@@ -351,16 +351,23 @@ URLS = {
 #   우선 URL → 실패 시 대체 URL 시도
 # ─────────────────────────────────────────────
 KR_PAPERS = {
-    "네이버 속보":  [
-        "https://news.naver.com/main/rss/allflash.nhn",
-        "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",
+    # 네이버·다음 공식 속보 RSS는 외부 서버에서 차단됨
+    # → 각 탭을 서로 다른 성격의 소스로 구성해 중복 방지
+    # when:Xh 파라미터로 최근 N시간 이내 기사만 필터링 → 속보 효과
+    "🔴 종합속보":  [
+        "https://news.google.com/rss/search?q=속보+when:1h&hl=ko&gl=KR&ceid=KR:ko",
+        "https://news.google.com/rss/search?q=속보+when:3h&hl=ko&gl=KR&ceid=KR:ko",
+        "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",   # 폴백
     ],
-    "다음 속보":    [
-        "https://media.daum.net/rss/breakingnews.rss",           # 다음 속보 (구 주소)
-        "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",   # 폴백: 구글
+    "🔴 정치속보":  [
+        "https://news.google.com/rss/search?q=정치+속보+when:1h&hl=ko&gl=KR&ceid=KR:ko",
+        "https://news.google.com/rss/search?q=정치+when:3h&hl=ko&gl=KR&ceid=KR:ko",
+        "https://news.google.com/rss/headlines/section/topic/POLITICS?hl=ko&gl=KR&ceid=KR:ko",
     ],
-    "구글 속보":    [
-        "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",
+    "🔴 사회속보":  [
+        "https://news.google.com/rss/search?q=사회+속보+when:1h&hl=ko&gl=KR&ceid=KR:ko",
+        "https://news.google.com/rss/search?q=사건+사고+when:3h&hl=ko&gl=KR&ceid=KR:ko",
+        "https://news.google.com/rss/headlines/section/topic/NATION?hl=ko&gl=KR&ceid=KR:ko",
     ],
     "조선일보":     [
         "https://www.chosun.com/arc/outboundfeeds/rss/?outputType=xml",
@@ -447,14 +454,16 @@ EN_PAPERS = {
 
 
 # ─────────────────────────────────────────────
-# 정부 보도자료 RSS (대한민국 정책브리핑 korea.kr)
 # ─────────────────────────────────────────────
-# 정책브리핑 공식 RSS — 탭별 개별 수집 (korea.kr/rss/*.xml)
+# 정부 보도자료
+#   1순위: korea.kr 공식 RSS (*.xml)
+#   2순위: 구글 뉴스 키워드 검색 RSS (korea.kr 차단 시 자동 폴백)
+# ─────────────────────────────────────────────
 GOV_TABS = {
-    "📋 보도자료":   "https://www.korea.kr/rss/pressrelease.xml",
-    "🏢 부처브리핑": "https://www.korea.kr/rss/ebriefing.xml",
-    "🏛️ 대통령실":  "https://www.korea.kr/rss/president.xml",
-    "📜 국무회의":   "https://www.korea.kr/rss/cabinet.xml",
+    "📋 보도자료":        "https://www.korea.kr/rss/pressrelease.xml",
+    "🏢 부처브리핑":      "https://www.korea.kr/rss/ebriefing.xml",
+    "🏛️ 대통령실":       "https://www.korea.kr/rss/president.xml",
+    "📜 국무회의":        "https://www.korea.kr/rss/cabinet.xml",
     "✅ 사실은이렇습니다": "https://www.korea.kr/rss/fact.xml",
 }
 
