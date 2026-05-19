@@ -231,30 +231,179 @@ BUS_STOPS = {
 GBIS_BASE = "https://apis.data.go.kr/6410000"
 
 
+@st.cache_data(ttl=3600)
+def fetch_station_id(mobile_no: str, service_key: str) -> str | None:
+    """
+    정류소 번호(mobileNo)로 stationId 조회.
+    getBusStationListv2 API는 keyword(정류소명)로 검색하므로
+    먼저 번호 4자리로 검색 후 mobileNo 일치 항목을 찾습니다.
+    mobileNo는 앞의 0을 제거한 숫자로도 비교합니다.
+    """
+    keyword = mobile_no.lstrip("0")  # 앞 0 제거 (01249 → 1249)
+    for kw in [mobile_no, keyword]:
+        try:
+            url = (
+                f"{GBIS_BASE}/busstationservice/v2/getBusStationListv2"
+                f"?serviceKey={service_key}&keyword={kw}&format=json"
+            )
+            r = requests.get(url, headers=HEADERS, timeout=10)
+            data = r.json()
+            body = data.get("response", {}).get("msgBody", {})
+            items = body.get("busStationList", [])
+            if isinstance(items, dict):
+                items = [items]
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                item_no = str(item.get("mobileNo", "")).strip().lstrip("0")
+                if item_no == keyword:
+                    sid = str(item.get("stationId", "")).strip()
+                    if sid:
+                        return sid
+        except Exception:
+            continue
+    return None
+
+
+@st.cache_data(ttl=60)
+def fetch_bus_arrivals(station_id: str, service_key: str) -> list:
+    """정류소 ID로 전체 버스 도착 목록 조회."""
+    try:
+        url = (
+            f"{GBIS_BASE}/busarrivalservice/v2/getBusArrivalListv2"
+            f"?serviceKey={service_key}&stationId={station_id}&format=json"
+        )
+        r = requests.get(url, headers=HEADERS, timeout=10)
+        data = r.json()
+        items = (data.get("response", {})
+                     .get("msgBody", {})
+                     .get("busArrivalList", []))
+        if isinstance(items, dict):
+            items = [items]
+        return items if isinstance(items, list) else []
+    except Exception:
+        return []
+
+
+def _min_sec(predict_time) -> str:
+    try:
+        secs = int(predict_time)
+        if secs <= 0:
+            return "곧 도착"
+        m, s = divmod(secs, 60)
+        return f"{m}분 {s}초" if m else f"{s}초"
+    except Exception:
+        return "-"
+
+
 def render_bus_info():
-    """
-    경기버스 GBIS 모바일 페이지를 iframe으로 표시합니다.
-    정류소 번호(mobileNo)로 직접 접근 — API 키 불필요.
-    """
-    import streamlit.components.v1 as components
+    service_key = st.secrets.get("BUS_SERVICE_KEY", "")
+    if not service_key:
+        st.info(
+            "버스 도착 정보를 보려면 Streamlit Settings > Secrets에 "
+            "BUS_SERVICE_KEY를 등록하세요. "
+            "공공데이터포털(data.go.kr)에서 무료 신청 가능합니다."
+        )
+        return
+
+    # ── 디버그: API 응답 확인 (문제 해결 후 제거 가능)
+    with st.expander("🔧 stationId 조회 디버그", expanded=False):
+        for stop_name, cfg in BUS_STOPS.items():
+            mn = cfg["mobileNo"]
+            kw = mn.lstrip("0")
+            st.markdown(f"**{stop_name}** (mobileNo={mn}, keyword={kw})")
+            try:
+                url = (
+                    f"{GBIS_BASE}/busstationservice/v2/getBusStationListv2"
+                    f"?serviceKey={service_key}&keyword={kw}&format=json"
+                )
+                r = requests.get(url, headers=HEADERS, timeout=10)
+                debug_txt = "status=" + str(r.status_code) + "\n" + r.text[:800]
+                st.code(debug_txt, language="json")
+            except Exception as e:
+                st.error(str(e))
+
+    def seat_badge(cnt):
+        try:
+            n = int(cnt)
+            color = "#00c0f0" if n > 5 else ("#ffaa00" if n > 0 else "#ff4b4b")
+            return f"<span style='color:{color}'>{n}석</span>"
+        except Exception:
+            return "-"
+
+    def loc_str(loc, name):
+        parts = []
+        if name:
+            parts.append(name)
+        try:
+            parts.append(f"{int(loc)}번째 전")
+        except Exception:
+            if str(loc) not in ("", "-"):
+                parts.append(f"{loc}번째 전")
+        return "<br>".join(parts) if parts else "-"
 
     for stop_name, cfg in BUS_STOPS.items():
-        mobile_no    = cfg["mobileNo"]
-        route_filter = ", ".join(cfg["routes"])
+        mobile_no     = cfg["mobileNo"]
+        target_routes = [r.replace("-", "").lower() for r in cfg["routes"]]
+        route_labels  = ", ".join(cfg["routes"])
+
         st.markdown(
             f"**🚏 {stop_name}** "
-            f"<span style='color:#aaa; font-size:0.85em'>({route_filter} 번)</span>",
+            f"<span style='color:#aaa; font-size:0.85em'>({route_labels}번)</span>",
             unsafe_allow_html=True,
         )
-        # GBIS 모바일 정류소 도착정보 페이지
-        # URL 패턴: StationArrivalViaList.do?districtCd=2&mobileNo=XXXXX
-        url = (
-            f"https://m.gbis.go.kr/search/StationArrivalViaList.do"
-            f"?districtCd=2&mobileNo={mobile_no}&osInfoType=M"
+
+        station_id = fetch_station_id(mobile_no, service_key)
+        if not station_id:
+            st.warning(f"정류소 {mobile_no} 의 ID를 찾을 수 없습니다.")
+            continue
+
+        arrivals = fetch_bus_arrivals(station_id, service_key)
+        filtered = [
+            a for a in arrivals
+            if a.get("routeName", "").replace("-", "").lower() in target_routes
+        ]
+        if not filtered:
+            st.info(f"현재 관심 노선({route_labels}) 운행 정보가 없습니다.")
+            continue
+
+        rows_html = ""
+        for a in filtered:
+            route  = a.get("routeName", "-")
+            pred1  = _min_sec(a.get("predictTime1", 0))
+            pred2  = _min_sec(a.get("predictTime2", 0))
+            loc1   = a.get("locationNo1", "-")
+            loc2   = a.get("locationNo2", "-")
+            name1  = a.get("stationName1") or a.get("prevStationName1", "")
+            name2  = a.get("stationName2") or a.get("prevStationName2", "")
+            rem1   = seat_badge(a.get("remainSeatCnt1", "-"))
+            rem2   = seat_badge(a.get("remainSeatCnt2", "-"))
+            rows_html += (
+                f"<tr>"
+                f"<td style='padding:5px 12px; font-weight:700'>🚌 {route}</td>"
+                f"<td style='padding:5px 12px; text-align:center'>"
+                f"  <b style='color:#ff4b4b'>{pred1}</b><br>"
+                f"  <span style='font-size:0.8em;color:#aaa'>{loc_str(loc1,name1)}</span></td>"
+                f"<td style='padding:5px 12px; text-align:center'>"
+                f"  <b style='color:#ffaa00'>{pred2}</b><br>"
+                f"  <span style='font-size:0.8em;color:#aaa'>{loc_str(loc2,name2)}</span></td>"
+                f"<td style='padding:5px 12px; text-align:center'>{rem1}</td>"
+                f"<td style='padding:5px 12px; text-align:center'>{rem2}</td>"
+                f"</tr>"
+            )
+
+        st.markdown(
+            f"<table style='width:100%;border-collapse:collapse;font-size:0.9em;margin-bottom:8px'>"
+            f"<thead><tr style='background:rgba(255,255,255,0.07);font-size:0.82em'>"
+            f"<th style='padding:5px 12px;text-align:left'>노선</th>"
+            f"<th style='padding:5px 12px'>1번째 버스</th>"
+            f"<th style='padding:5px 12px'>2번째 버스</th>"
+            f"<th style='padding:5px 12px'>잔여석①</th>"
+            f"<th style='padding:5px 12px'>잔여석②</th>"
+            f"</tr></thead>"
+            f"<tbody>{rows_html}</tbody></table>",
+            unsafe_allow_html=True,
         )
-        components.iframe(url, height=340, scrolling=True)
-        st.caption(f"📌 관심 노선: {route_filter} | 출처: 경기버스정보(gbis.go.kr)")
-        st.write("")
 
 # ─────────────────────────────────────────────
 # 주식 데이터
