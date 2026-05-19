@@ -233,30 +233,21 @@ GBIS_BASE = "https://apis.data.go.kr/6410000"
 
 @st.cache_data(ttl=3600)
 def fetch_station_id(mobile_no: str, service_key: str) -> str | None:
-    """
-    정류소 번호(mobileNo)로 stationId 조회.
-    getBusStationListv2 API는 keyword(정류소명)로 검색하므로
-    먼저 번호 4자리로 검색 후 mobileNo 일치 항목을 찾습니다.
-    mobileNo는 앞의 0을 제거한 숫자로도 비교합니다.
-    """
-    keyword = mobile_no.lstrip("0")  # 앞 0 제거 (01249 → 1249)
+    """정류소 번호(mobileNo)로 stationId 조회."""
+    keyword = mobile_no.lstrip("0")
     for kw in [mobile_no, keyword]:
         try:
             url = (
                 f"{GBIS_BASE}/busstationservice/v2/getBusStationListv2"
                 f"?serviceKey={service_key}&keyword={kw}&format=json"
             )
-            r = requests.get(url, headers=HEADERS, timeout=10)
-            data = r.json()
-            body = data.get("response", {}).get("msgBody", {})
+            r    = requests.get(url, headers=HEADERS, timeout=10)
+            body = r.json().get("response", {}).get("msgBody", {})
             items = body.get("busStationList", [])
             if isinstance(items, dict):
                 items = [items]
-            if not isinstance(items, list):
-                continue
             for item in items:
-                item_no = str(item.get("mobileNo", "")).strip().lstrip("0")
-                if item_no == keyword:
+                if str(item.get("mobileNo", "")).strip().lstrip("0") == keyword:
                     sid = str(item.get("stationId", "")).strip()
                     if sid:
                         return sid
@@ -267,17 +258,21 @@ def fetch_station_id(mobile_no: str, service_key: str) -> str | None:
 
 @st.cache_data(ttl=60)
 def fetch_bus_arrivals(station_id: str, service_key: str) -> list:
-    """정류소 ID로 전체 버스 도착 목록 조회."""
+    """
+    정류소 ID로 전체 버스 도착 목록 조회.
+    응답 구조: response.msgBody.busArrivalList (리스트) 또는
+               response.msgBody.busArrivalItem (단일 객체 or 리스트)
+    """
     try:
         url = (
             f"{GBIS_BASE}/busarrivalservice/v2/getBusArrivalListv2"
             f"?serviceKey={service_key}&stationId={station_id}&format=json"
         )
-        r = requests.get(url, headers=HEADERS, timeout=10)
-        data = r.json()
-        items = (data.get("response", {})
-                     .get("msgBody", {})
-                     .get("busArrivalList", []))
+        r    = requests.get(url, headers=HEADERS, timeout=10)
+        body = r.json().get("response", {}).get("msgBody", {})
+
+        # 키 이름이 busArrivalList 또는 busArrivalItem 모두 처리
+        items = body.get("busArrivalList") or body.get("busArrivalItem") or []
         if isinstance(items, dict):
             items = [items]
         return items if isinstance(items, list) else []
@@ -285,9 +280,14 @@ def fetch_bus_arrivals(station_id: str, service_key: str) -> list:
         return []
 
 
-def _min_sec(predict_time) -> str:
+def _fmt_time(predict_time_min, predict_time_sec=None) -> str:
+    """predictTime(분) 또는 predictTimeSec(초)로 도착 시간 포맷."""
     try:
-        secs = int(predict_time)
+        # predictTimeSec 우선 사용
+        if predict_time_sec is not None:
+            secs = int(predict_time_sec)
+        else:
+            secs = int(predict_time_min) * 60
         if secs <= 0:
             return "곧 도착"
         m, s = divmod(secs, 60)
@@ -295,33 +295,6 @@ def _min_sec(predict_time) -> str:
     except Exception:
         return "-"
 
-
-def render_bus_info():
-    service_key = st.secrets.get("BUS_SERVICE_KEY", "")
-    if not service_key:
-        st.info(
-            "버스 도착 정보를 보려면 Streamlit Settings > Secrets에 "
-            "BUS_SERVICE_KEY를 등록하세요. "
-            "공공데이터포털(data.go.kr)에서 무료 신청 가능합니다."
-        )
-        return
-
-    # ── 디버그: API 응답 확인 (문제 해결 후 제거 가능)
-    with st.expander("🔧 stationId 조회 디버그", expanded=False):
-        for stop_name, cfg in BUS_STOPS.items():
-            mn = cfg["mobileNo"]
-            kw = mn.lstrip("0")
-            st.markdown(f"**{stop_name}** (mobileNo={mn}, keyword={kw})")
-            try:
-                url = (
-                    f"{GBIS_BASE}/busstationservice/v2/getBusStationListv2"
-                    f"?serviceKey={service_key}&keyword={kw}&format=json"
-                )
-                r = requests.get(url, headers=HEADERS, timeout=10)
-                debug_txt = "status=" + str(r.status_code) + "\n" + r.text[:800]
-                st.code(debug_txt, language="json")
-            except Exception as e:
-                st.error(str(e))
 
     def seat_badge(cnt):
         try:
@@ -369,13 +342,15 @@ def render_bus_info():
 
         rows_html = ""
         for a in filtered:
-            route  = a.get("routeName", "-")
-            pred1  = _min_sec(a.get("predictTime1", 0))
-            pred2  = _min_sec(a.get("predictTime2", 0))
+            route  = str(a.get("routeName", "-"))
+            # 시간: predictTimeSec(초) 우선, 없으면 predictTime(분)
+            pred1  = _fmt_time(a.get("predictTime1", 0),  a.get("predictTimeSec1"))
+            pred2  = _fmt_time(a.get("predictTime2", 0),  a.get("predictTimeSec2"))
             loc1   = a.get("locationNo1", "-")
             loc2   = a.get("locationNo2", "-")
-            name1  = a.get("stationName1") or a.get("prevStationName1", "")
-            name2  = a.get("stationName2") or a.get("prevStationName2", "")
+            # 현재위치명: stationNm1/2 (확인된 필드명)
+            name1  = a.get("stationNm1") or a.get("stationName1") or a.get("prevStationName1", "")
+            name2  = a.get("stationNm2") or a.get("stationName2") or a.get("prevStationName2", "")
             rem1   = seat_badge(a.get("remainSeatCnt1", "-"))
             rem2   = seat_badge(a.get("remainSeatCnt2", "-"))
             rows_html += (
