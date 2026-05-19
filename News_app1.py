@@ -379,7 +379,6 @@ KR_ECO_SOURCES = [
     ("한국경제",  "https://www.hankyung.com/feed/all-news"),
     ("서울경제",  "https://www.sedaily.com/RssService/RSS"),
     ("머니투데이","https://rss.mt.co.kr/mt_all.xml"),
-    ("이데일리",  "https://rss.edaily.co.kr/edaily_news.xml"),
     ("파이낸셜뉴스","https://www.fnnews.com/rss/fn_economy_news.xml"),
     ("구글/경제", "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ko&gl=KR&ceid=KR:ko"),
 ]
