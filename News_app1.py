@@ -352,8 +352,15 @@ URLS = {
 # ─────────────────────────────────────────────
 KR_PAPERS = {
     "네이버 속보":  [
-        "https://news.naver.com/main/rss/allflash.nhn",          # 네이버 속보
-        "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",   # 폴백: 구글 종합
+        "https://news.naver.com/main/rss/allflash.nhn",
+        "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",
+    ],
+    "다음 속보":    [
+        "https://media.daum.net/rss/breakingnews.rss",           # 다음 속보 (구 주소)
+        "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",   # 폴백: 구글
+    ],
+    "구글 속보":    [
+        "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",
     ],
     "조선일보":     [
         "https://www.chosun.com/arc/outboundfeeds/rss/?outputType=xml",
@@ -364,9 +371,9 @@ KR_PAPERS = {
         "https://www.donga.com/news/rss/",
     ],
     "한겨레":       [
-        "https://www.hani.co.kr/rss/politics/",    # 정치 (주요기사 위주)
-        "https://www.hani.co.kr/rss/society/",     # 사회
-        "https://www.hani.co.kr/rss/",             # 전체 (폴백)
+        "https://www.hani.co.kr/rss/politics/",
+        "https://www.hani.co.kr/rss/society/",
+        "https://www.hani.co.kr/rss/",
     ],
     "경향신문":     [
         "https://www.khan.co.kr/rss/rssdata/total_news.xml",
@@ -422,7 +429,14 @@ def fetch_eco_news(limit_per_source: int = 5) -> tuple:
 # 뉴스 일괄 수집 (캐시 1시간)
 # ─────────────────────────────────────────────
 # 영자신문 탭 정의
+# AP: rsshub.app 공개 미러 사용 (공식 RSS 미제공)
+# AFP: 공식 RSS 없음 → 구글 뉴스 AFP 소스 필터 사용
 EN_PAPERS = {
+    "AP":              {"url": "https://rsshub.app/apnews/topics/apf-topnews",                "clean": False, "limit": 10,
+                        "fallback": "https://feeds.bbci.co.uk/news/world/rss.xml"},
+    "AFP":             {"url": "https://news.google.com/rss/search?q=AFP+when:1d&hl=en-US&gl=US&ceid=US:en",
+                                                                                              "clean": False, "limit": 10,
+                        "fallback": "https://feeds.bbci.co.uk/news/world/rss.xml"},
     "NYT Top Stories": {"url": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",  "clean": True,  "limit": 10},
     "NYT Opinion":     {"url": "https://rss.nytimes.com/services/xml/rss/nyt/Opinion.xml",   "clean": True,  "limit": 8},
     "WSJ World":       {"url": "https://feeds.content.dowjones.io/public/rss/RSSWorldNews",  "clean": True,  "limit": 10},
@@ -431,13 +445,34 @@ EN_PAPERS = {
 }
 
 
+# ─────────────────────────────────────────────
+# 정부 보도자료 RSS (대한민국 정책브리핑 korea.kr)
+# ─────────────────────────────────────────────
+GOV_RSS_SOURCES = [
+    ("정책브리핑/보도자료",  "https://www.korea.kr/rss/pressRelease.do"),
+    ("정책브리핑/정책뉴스",  "https://www.korea.kr/rss/policyNews.do"),
+    ("정책브리핑/전체",      "https://www.korea.kr/rss/allNews.do"),
+]
+
+
+def fetch_gov_news(limit: int = 15) -> tuple:
+    """정부 보도자료를 수집합니다."""
+    for label, url in GOV_RSS_SOURCES:
+        result = get_rss_news(url, limit, do_clean_url=False, silent=True)
+        if result:
+            return result, label
+    return [], "없음"
+
+
 @st.cache_data(ttl=3600)
 def fetch_all_news():
-    # 영자신문 탭별 수집
-    en_papers = {
-        name: get_rss_news(cfg["url"], cfg["limit"], cfg["clean"], silent=True)
-        for name, cfg in EN_PAPERS.items()
-    }
+    # 영자신문 탭별 수집 (fallback 지원)
+    en_papers = {}
+    for name, cfg in EN_PAPERS.items():
+        articles = get_rss_news(cfg["url"], cfg["limit"], cfg["clean"], silent=True)
+        if not articles and cfg.get("fallback"):
+            articles = get_rss_news(cfg["fallback"], cfg["limit"], cfg["clean"], silent=True)
+        en_papers[name] = articles
 
     # 국내 신문사별 뉴스
     kr_papers = {name: get_paper_news(urls) for name, urls in KR_PAPERS.items()}
@@ -445,7 +480,10 @@ def fetch_all_news():
     # 경제 뉴스
     kr_eco, kr_eco_src = fetch_eco_news(limit_per_source=5)
 
-    return en_papers, kr_papers, kr_eco, kr_eco_src
+    # 정부 보도자료
+    gov_news, gov_src = fetch_gov_news(limit=15)
+
+    return en_papers, kr_papers, kr_eco, kr_eco_src, gov_news, gov_src
 
 
 # ─────────────────────────────────────────────
@@ -483,7 +521,7 @@ st.divider()
 
 # ── 뉴스 수집 ─────────────────────────────────
 with st.spinner("최신 뉴스를 수집하고 있습니다..."):
-    en_papers, kr_papers, kr_eco, kr_eco_src = fetch_all_news()
+    en_papers, kr_papers, kr_eco, kr_eco_src, gov_news, gov_src = fetch_all_news()
 
 # ── 영자신문: 탭 형식 ─────────────────────────
 st.header("🌐 English News")
@@ -506,3 +544,13 @@ st.divider()
 # ── 경제 뉴스 ─────────────────────────────────
 st.markdown(f"## 💼 경제 뉴스 <small style='color:gray;'>({kr_eco_src})</small>", unsafe_allow_html=True)
 render_news(kr_eco, show_source=True)
+
+st.divider()
+
+# ── 정부 보도자료 ──────────────────────────────
+st.markdown(f"## 🏛️ 오늘의 정부 소식 <small style='color:gray;'>({gov_src})</small>", unsafe_allow_html=True)
+st.caption("대한민국 정책브리핑(korea.kr) 보도자료 기반")
+if gov_news:
+    render_news(gov_news)
+else:
+    st.info("정부 보도자료를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.")
