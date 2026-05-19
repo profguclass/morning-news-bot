@@ -58,12 +58,13 @@ def get_rss_news(url, limit=10, do_clean_url=False):
     return news_list
 
 
-def render_news(news_list):
+def render_news(news_list, show_source: bool = False):
     if not news_list:
         st.warning("기사를 불러올 수 없습니다.")
         return
     for i, news in enumerate(news_list, 1):
-        st.markdown(f"**{i}. [{news['title']}]({news['link']})**")
+        source_tag = f" `{news['source']}`" if show_source and news.get("source") else ""
+        st.markdown(f"**{i}. [{news['title']}]({news['link']})**{source_tag}")
         if news["desc"]:
             st.caption(news["desc"])
         st.write("")
@@ -86,21 +87,26 @@ WMO_DESC = {
 
 @st.cache_data(ttl=1800)
 def fetch_weather():
-    """Open-Meteo API — 가입·API키 불필요 (https://open-meteo.com)"""
+    """Open-Meteo API — 현재 날씨 + 7일 예보 (가입·API키 불필요)"""
     try:
         url = (
             "https://api.open-meteo.com/v1/forecast"
             f"?latitude={SUWON_LAT}&longitude={SUWON_LON}"
             "&current=temperature_2m,apparent_temperature,relative_humidity_2m"
-            ",wind_speed_10m,weathercode"
+            ",wind_speed_10m,weather_code"
+            "&daily=weather_code,temperature_2m_max,temperature_2m_min"
+            ",precipitation_sum,wind_speed_10m_max"
+            "&forecast_days=7"
             "&timezone=Asia%2FSeoul"
         )
         r    = requests.get(url, timeout=8)
         data = r.json()
-        cur  = data.get("current", {})
-        code = int(cur.get("weathercode", 0))
+
+        # ── 현재 날씨
+        cur   = data.get("current", {})
+        code  = int(cur.get("weather_code", 0))
         emoji, desc = WMO_DESC.get(code, ("🌡", f"코드 {code}"))
-        return {
+        current = {
             "temp":     cur.get("temperature_2m", 0),
             "feels":    cur.get("apparent_temperature", 0),
             "humidity": cur.get("relative_humidity_2m", 0),
@@ -108,6 +114,24 @@ def fetch_weather():
             "emoji":    emoji,
             "desc":     desc,
         }
+
+        # ── 7일 예보
+        d = data.get("daily", {})
+        forecast = []
+        for i, date_str in enumerate(d.get("time", [])):
+            wcode = int(d.get("weather_code", [0]*7)[i] or 0)
+            em, dc = WMO_DESC.get(wcode, ("🌡", "-"))
+            forecast.append({
+                "date":    date_str,          # "2025-05-19"
+                "emoji":   em,
+                "desc":    dc,
+                "t_max":   d.get("temperature_2m_max", [None]*7)[i],
+                "t_min":   d.get("temperature_2m_min", [None]*7)[i],
+                "precip":  d.get("precipitation_sum", [0]*7)[i] or 0,
+                "wind_max":d.get("wind_speed_10m_max", [0]*7)[i] or 0,
+            })
+
+        return {"current": current, "forecast": forecast}
     except Exception as e:
         return {"error": str(e)}
 
@@ -117,12 +141,36 @@ def render_weather():
     if "error" in w:
         st.warning(f"날씨 정보를 불러올 수 없습니다. ({w['error']})")
         return
+
+    cur = w["current"]
+    # ── 현재 날씨 한 줄
     st.markdown(
-        f"{w['emoji']} &nbsp; **경기도 수원** | {w['desc']} &nbsp;·&nbsp; "
-        f"🌡 **{w['temp']:.1f}°C** (체감 {w['feels']:.1f}°C) &nbsp;·&nbsp; "
-        f"💧 습도 {w['humidity']}% &nbsp;·&nbsp; "
-        f"🌬 바람 {w['wind']} m/s"
+        f"{cur['emoji']} &nbsp; **경기도 수원** | {cur['desc']} &nbsp;·&nbsp; "
+        f"🌡 **{cur['temp']:.1f}°C** (체감 {cur['feels']:.1f}°C) &nbsp;·&nbsp; "
+        f"💧 습도 {cur['humidity']}% &nbsp;·&nbsp; "
+        f"🌬 바람 {cur['wind']:.1f} m/s"
     )
+
+    # ── 7일 예보 카드
+    st.markdown("##### 📅 7일 예보")
+    cols = st.columns(7)
+    for col, day in zip(cols, w["forecast"]):
+        date_obj = datetime.strptime(day["date"], "%Y-%m-%d")
+        weekdays = ["월","화","수","목","금","토","일"]
+        wd = weekdays[date_obj.weekday()]
+        label = f"{date_obj.month}/{date_obj.day}({wd})"
+        with col:
+            st.markdown(
+                f"<div style='text-align:center; font-size:0.78em; line-height:1.6'>"
+                f"<b>{label}</b><br>"
+                f"<span style='font-size:1.5em'>{day['emoji']}</span><br>"
+                f"{day['desc']}<br>"
+                f"<span style='color:#e63946'>▲{day['t_max']:.0f}°</span> "
+                f"<span style='color:#0077b6'>▼{day['t_min']:.0f}°</span><br>"
+                f"💧{day['precip']:.1f}mm"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
 
 
 # ─────────────────────────────────────────────
@@ -320,27 +368,18 @@ KR_PAPERS = {
         "https://www.khan.co.kr/rss/rssdata/total_news.xml",
         "https://khan.co.kr/rss/rssdata/kh_news.xml",
     ],
-    "MBC":          [
-        "https://imnews.imbc.com/rss/news/news_00.xml",
-    ],
-    "KBS":          [
-        "https://news.kbs.co.kr/rss/rss.do?source=politics",
-    ],
-    "매일경제":     [
-        "https://www.mk.co.kr/rss/40300001/",
-        "https://www.mk.co.kr/rss/30000001/",
-    ],
-    "한국경제":     [
-        "https://www.hankyung.com/feed/all-news",
-    ],
 }
 
 # 경제 뉴스 소스 (폴백 체인)
-KR_ECO_CANDIDATES = [
-    ("매일경제",  "https://www.mk.co.kr/rss/40300001/",    False),
-    ("한국경제",  "https://www.hankyung.com/feed/all-news", False),
-    ("서울경제",  "https://www.sedaily.com/RssService/RSS", False),
-    ("구글/경제", "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ko&gl=KR&ceid=KR:ko", False),
+# 경제 뉴스 — 여러 언론사를 모두 수집해 합산 후 최신순 정렬
+KR_ECO_SOURCES = [
+    ("매일경제",  "https://www.mk.co.kr/rss/40300001/"),
+    ("한국경제",  "https://www.hankyung.com/feed/all-news"),
+    ("서울경제",  "https://www.sedaily.com/RssService/RSS"),
+    ("머니투데이","https://rss.mt.co.kr/mt_all.xml"),
+    ("이데일리",  "https://rss.edaily.co.kr/edaily_news.xml"),
+    ("파이낸셜뉴스","https://www.fnnews.com/rss/fn_economy_news.xml"),
+    ("구글/경제", "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ko&gl=KR&ceid=KR:ko"),
 ]
 
 
@@ -361,6 +400,21 @@ def get_rss_with_fallback(candidates: list, limit: int = 10):
     return [], "없음"
 
 
+def fetch_eco_news(limit_per_source: int = 5) -> tuple:
+    """경제 언론사 전체를 수집해 합산, 출처 태그 포함하여 반환."""
+    combined = []
+    used_sources = []
+    for label, url in KR_ECO_SOURCES:
+        articles = get_rss_news(url, limit_per_source, do_clean_url=False)
+        if articles:
+            used_sources.append(label)
+            for a in articles:
+                a["source"] = label   # 출처 태그 추가
+            combined.extend(articles)
+    src_str = " · ".join(used_sources) if used_sources else "없음"
+    return combined, src_str
+
+
 # ─────────────────────────────────────────────
 # 뉴스 일괄 수집 (캐시 1시간)
 # ─────────────────────────────────────────────
@@ -376,7 +430,7 @@ def fetch_all_news():
     kr_papers = {name: get_paper_news(urls) for name, urls in KR_PAPERS.items()}
 
     # 경제 뉴스
-    kr_eco, kr_eco_src = get_rss_with_fallback(KR_ECO_CANDIDATES, 10)
+    kr_eco, kr_eco_src = fetch_eco_news(limit_per_source=5)
 
     return nyt_news, nyt_opinion, wsj_news, wsj_opinion, kt_news, kr_papers, kr_eco, kr_eco_src
 
@@ -454,4 +508,4 @@ st.divider()
 
 # ── 경제 뉴스 ─────────────────────────────────
 st.markdown(f"## 💼 경제 뉴스 <small style='color:gray;'>({kr_eco_src})</small>", unsafe_allow_html=True)
-render_news(kr_eco)
+render_news(kr_eco, show_source=True)
