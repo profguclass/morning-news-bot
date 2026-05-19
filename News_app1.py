@@ -351,14 +351,13 @@ URLS = {
 #   우선 URL → 실패 시 대체 URL 시도
 # ─────────────────────────────────────────────
 KR_PAPERS = {
-    # 네이버·다음 공식 속보 RSS는 외부 서버에서 차단됨
-    # → 각 탭을 서로 다른 성격의 소스로 구성해 중복 방지
     # when:Xh 파라미터로 최근 N시간 이내 기사만 필터링 → 속보 효과
     "🔴 종합속보":  [
         "https://news.google.com/rss/search?q=속보+when:1h&hl=ko&gl=KR&ceid=KR:ko",
         "https://news.google.com/rss/search?q=속보+when:3h&hl=ko&gl=KR&ceid=KR:ko",
-        "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",   # 폴백
+        "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",
     ],
+    "💼 경제속보":   [],   # fetch_eco_news() 데이터 사용 (탭명 변경)
     "🔴 정치속보":  [
         "https://news.google.com/rss/search?q=정치+속보+when:1h&hl=ko&gl=KR&ceid=KR:ko",
         "https://news.google.com/rss/search?q=정치+when:3h&hl=ko&gl=KR&ceid=KR:ko",
@@ -386,7 +385,6 @@ KR_PAPERS = {
         "https://www.khan.co.kr/rss/rssdata/total_news.xml",
         "https://khan.co.kr/rss/rssdata/kh_news.xml",
     ],
-    "💼 경제뉴스":   [],   # 경제 뉴스 탭 — 데이터는 fetch_eco_news()에서 별도 수집
 }
 
 # 경제 뉴스 소스 (폴백 체인)
@@ -459,21 +457,41 @@ EN_PAPERS = {
 #   1순위: korea.kr 공식 RSS (*.xml)
 #   2순위: 구글 뉴스 키워드 검색 RSS (korea.kr 차단 시 자동 폴백)
 # ─────────────────────────────────────────────
+# GOV_TABS: 각 항목에 대체 URL 목록 지정 (순서대로 시도)
 GOV_TABS = {
-    "📋 보도자료":        "https://www.korea.kr/rss/pressrelease.xml",
-    "🏢 부처브리핑":      "https://www.korea.kr/rss/ebriefing.xml",
-    "🏛️ 대통령실":       "https://www.korea.kr/rss/president.xml",
-    "📜 국무회의":        "https://www.korea.kr/rss/cabinet.xml",
-    "✅ 사실은이렇습니다": "https://www.korea.kr/rss/fact.xml",
+    "📋 보도자료":        [
+        "https://www.korea.kr/rss/pressRelease.xml",   # 대소문자 변형1
+        "https://www.korea.kr/rss/pressrelease.xml",   # 변형2
+        "https://www.korea.kr/briefing/pressReleaseList.do?call_from=rsslink",
+    ],
+    "🏢 부처브리핑":      [
+        "https://www.korea.kr/rss/ebriefing.xml",
+    ],
+    "🏛️ 대통령실":       [
+        "https://www.korea.kr/rss/president.xml",
+        "https://www.korea.kr/rss/presidentialOffice.xml",
+        "https://www1.president.go.kr/rss/news.xml",   # 대통령실 직접 RSS
+    ],
+    "📜 국무회의":        [
+        "https://www.korea.kr/rss/cabinet.xml",
+    ],
+    "✅ 사실은이렇습니다": [
+        "https://www.korea.kr/rss/fact.xml",
+    ],
 }
 
 
 def fetch_gov_news(limit: int = 15) -> dict:
-    """정부 탭별로 각각 수집합니다."""
-    return {
-        name: get_rss_news(url, limit, do_clean_url=False, silent=True)
-        for name, url in GOV_TABS.items()
-    }
+    """정부 탭별로 각각 수집합니다. URL 목록 순서대로 시도."""
+    result = {}
+    for name, urls in GOV_TABS.items():
+        articles = []
+        for url in urls:
+            articles = get_rss_news(url, limit, do_clean_url=False, silent=True)
+            if articles:
+                break
+        result[name] = articles
+    return result
 
 
 @st.cache_data(ttl=3600)
@@ -549,7 +567,7 @@ st.header("📰 국내 주요 신문")
 kr_tabs = st.tabs(list(KR_PAPERS.keys()))
 for tab, (paper_name, _) in zip(kr_tabs, KR_PAPERS.items()):
     with tab:
-        if paper_name == "💼 경제뉴스":
+        if paper_name == "💼 경제속보":
             st.caption(f"출처: {kr_eco_src}")
             render_news(kr_eco, show_source=True)
         else:
