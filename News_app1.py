@@ -351,8 +351,9 @@ URLS = {
 #   우선 URL → 실패 시 대체 URL 시도
 # ─────────────────────────────────────────────
 KR_PAPERS = {
-    "네이버 뉴스":  [
-        "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",   # 구글 뉴스로 종합 대체
+    "네이버 속보":  [
+        "https://news.naver.com/main/rss/allflash.nhn",          # 네이버 속보
+        "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",   # 폴백: 구글 종합
     ],
     "조선일보":     [
         "https://www.chosun.com/arc/outboundfeeds/rss/?outputType=xml",
@@ -363,8 +364,9 @@ KR_PAPERS = {
         "https://www.donga.com/news/rss/",
     ],
     "한겨레":       [
-        "https://www.hani.co.kr/rss/",
-        "https://www.hani.co.kr/rss/section/001/",
+        "https://www.hani.co.kr/rss/politics/",    # 정치 (주요기사 위주)
+        "https://www.hani.co.kr/rss/society/",     # 사회
+        "https://www.hani.co.kr/rss/",             # 전체 (폴백)
     ],
     "경향신문":     [
         "https://www.khan.co.kr/rss/rssdata/total_news.xml",
@@ -419,13 +421,23 @@ def fetch_eco_news(limit_per_source: int = 5) -> tuple:
 # ─────────────────────────────────────────────
 # 뉴스 일괄 수집 (캐시 1시간)
 # ─────────────────────────────────────────────
+# 영자신문 탭 정의
+EN_PAPERS = {
+    "NYT Top Stories": {"url": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",  "clean": True,  "limit": 10},
+    "NYT Opinion":     {"url": "https://rss.nytimes.com/services/xml/rss/nyt/Opinion.xml",   "clean": True,  "limit": 8},
+    "WSJ World":       {"url": "https://feeds.content.dowjones.io/public/rss/RSSWorldNews",  "clean": True,  "limit": 10},
+    "WSJ Opinion":     {"url": "https://feeds.content.dowjones.io/public/rss/RSSOpinion",    "clean": True,  "limit": 8},
+    "Korea Times":     {"url": "https://feed.koreatimes.co.kr/k/allnews.xml",                "clean": False, "limit": 10},
+}
+
+
 @st.cache_data(ttl=3600)
 def fetch_all_news():
-    nyt_news    = get_rss_news(URLS["nyt_top"],  10, True)
-    nyt_opinion = get_rss_news(URLS["nyt_op"],    5, True)
-    wsj_news    = get_rss_news(URLS["wsj_top"],  10, True)
-    wsj_opinion = get_rss_news(URLS["wsj_op"],    5, True)
-    kt_news     = get_rss_news(URLS["kt_top"],   10, False)
+    # 영자신문 탭별 수집
+    en_papers = {
+        name: get_rss_news(cfg["url"], cfg["limit"], cfg["clean"], silent=True)
+        for name, cfg in EN_PAPERS.items()
+    }
 
     # 국내 신문사별 뉴스
     kr_papers = {name: get_paper_news(urls) for name, urls in KR_PAPERS.items()}
@@ -433,7 +445,7 @@ def fetch_all_news():
     # 경제 뉴스
     kr_eco, kr_eco_src = fetch_eco_news(limit_per_source=5)
 
-    return nyt_news, nyt_opinion, wsj_news, wsj_opinion, kt_news, kr_papers, kr_eco, kr_eco_src
+    return en_papers, kr_papers, kr_eco, kr_eco_src
 
 
 # ─────────────────────────────────────────────
@@ -471,37 +483,21 @@ st.divider()
 
 # ── 뉴스 수집 ─────────────────────────────────
 with st.spinner("최신 뉴스를 수집하고 있습니다..."):
-    nyt_n, nyt_o, wsj_n, wsj_o, kt_n, kr_papers, kr_eco, kr_eco_src = fetch_all_news()
+    en_papers, kr_papers, kr_eco, kr_eco_src = fetch_all_news()
 
-# ── 해외 뉴스: 3단 레이아웃 ───────────────────
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.header("🗽 New York Times")
-    st.subheader("Top Stories")
-    render_news(nyt_n)
-    st.divider()
-    st.subheader("Opinion")
-    render_news(nyt_o)
-
-with col2:
-    st.header("📈 Wall Street Journal")
-    st.subheader("Top Stories")
-    render_news(wsj_n)
-    st.divider()
-    st.subheader("Opinion")
-    render_news(wsj_o)
-
-with col3:
-    st.header("🇰🇷 Korea Times")
-    render_news(kt_n)
+# ── 영자신문: 탭 형식 ─────────────────────────
+st.header("🌐 English News")
+en_tabs = st.tabs(list(EN_PAPERS.keys()))
+for tab, paper_name in zip(en_tabs, EN_PAPERS.keys()):
+    with tab:
+        render_news(en_papers.get(paper_name, []))
 
 st.divider()
 
 # ── 국내 뉴스: 신문사별 탭 ───────────────────
 st.header("📰 국내 주요 신문")
-tabs = st.tabs(list(KR_PAPERS.keys()))
-for tab, (paper_name, _) in zip(tabs, KR_PAPERS.items()):
+kr_tabs = st.tabs(list(KR_PAPERS.keys()))
+for tab, (paper_name, _) in zip(kr_tabs, KR_PAPERS.items()):
     with tab:
         render_news(kr_papers.get(paper_name, []))
 
