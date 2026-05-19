@@ -211,20 +211,29 @@ def render_weather():
 # ─────────────────────────────────────────────
 
 # 관심 정류소 설정: {표시명: (정류소번호, 보고싶은노선목록)}
-# 경기버스 정류소 번호 → 관심 노선 목록
-# GBIS 모바일 웹을 iframe으로 표시 (API 인증 불필요)
+# 경기버스 정류소 설정
+# stationId: GBIS API의 내부 ID (아래 방법으로 확인)
+#   → 디버그 expander에서 getBusStationListv2 응답의 stationId 값 복사
+# mobileNo: 정류소 번호판에 표시된 번호 (검색용)
+# stationName: 정류소 검색 키워드
 BUS_STOPS = {
     "조원고등학교 (조원뉴타운방면)": {
-        "mobileNo": "01249",
-        "routes":   ["16-2"],
+        "stationId":   "",              # 확인 후 입력
+        "stationName": "조원고등학교",
+        "mobileNo":    "01249",
+        "routes":      ["16-2"],
     },
     "한일타운 (서울방면)": {
-        "mobileNo": "01125",
-        "routes":   ["7770"],
+        "stationId":   "",
+        "stationName": "한일타운",
+        "mobileNo":    "01125",
+        "routes":      ["7770"],
     },
     "경기남부보훈지청": {
-        "mobileNo": "01285",
-        "routes":   ["19", "99", "99-2"],
+        "stationId":   "",
+        "stationName": "경기남부보훈지청",
+        "mobileNo":    "01285",
+        "routes":      ["19", "99", "99-2"],
     },
 }
 
@@ -232,25 +241,40 @@ GBIS_BASE = "https://apis.data.go.kr/6410000"
 
 
 @st.cache_data(ttl=3600)
-def fetch_station_id(mobile_no: str, service_key: str) -> str | None:
-    """정류소 번호(mobileNo)로 stationId 조회."""
-    keyword = mobile_no.lstrip("0")
-    for kw in [mobile_no, keyword]:
+def fetch_station_id(station_name: str, mobile_no: str, service_key: str) -> str | None:
+    """
+    정류소명(keyword)으로 검색 후 mobileNo 일치 항목의 stationId 반환.
+    응답 예시: {"busStationList": [{"stationId":..., "mobileNo":..., "stationName":...}]}
+    """
+    mobile_stripped = mobile_no.lstrip("0")
+    # 정류소명 → 번호 순으로 시도
+    for kw in [station_name, mobile_stripped, mobile_no]:
         try:
             url = (
                 f"{GBIS_BASE}/busstationservice/v2/getBusStationListv2"
-                f"?serviceKey={service_key}&keyword={kw}&format=json"
+                f"?serviceKey={service_key}"
+                f"&keyword={requests.utils.quote(kw)}"
+                f"&format=json"
             )
             r    = requests.get(url, headers=HEADERS, timeout=10)
             body = r.json().get("response", {}).get("msgBody", {})
             items = body.get("busStationList", [])
             if isinstance(items, dict):
                 items = [items]
+            if not isinstance(items, list):
+                continue
             for item in items:
-                if str(item.get("mobileNo", "")).strip().lstrip("0") == keyword:
+                # mobileNo 비교 (앞자리 0 제거 후 비교)
+                item_mobile = str(item.get("mobileNo", "")).strip().lstrip("0")
+                if item_mobile == mobile_stripped:
                     sid = str(item.get("stationId", "")).strip()
                     if sid:
                         return sid
+            # mobileNo 매칭 없으면 첫 번째 결과 반환 (정류소명이 고유한 경우)
+            if items and kw == station_name:
+                sid = str(items[0].get("stationId", "")).strip()
+                if sid:
+                    return sid
         except Exception:
             continue
     return None
@@ -308,6 +332,26 @@ def render_bus_info():
         )
         return
 
+    # ── 디버그: stationId 조회 결과 확인용
+    with st.expander("🔧 stationId 조회 디버그 (확인 후 제거 예정)", expanded=False):
+        st.write("**serviceKey 앞 10자:**", service_key[:10] + "...")
+        for sn, cfg in BUS_STOPS.items():
+            mn   = cfg["mobileNo"]
+            nm   = cfg.get("stationName", mn)
+            sid  = cfg.get("stationId", "")
+            st.markdown(f"**{sn}**  mobileNo=`{mn}`  stationName=`{nm}`  하드코딩ID=`{sid or '없음'}`")
+            for kw in [nm, mn.lstrip("0")]:
+                try:
+                    url = (
+                        f"{GBIS_BASE}/busstationservice/v2/getBusStationListv2"
+                        f"?serviceKey={service_key}"
+                        f"&keyword={requests.utils.quote(kw)}&format=json"
+                    )
+                    r = requests.get(url, headers=HEADERS, timeout=10)
+                    st.code("keyword=" + kw + "  status=" + str(r.status_code) + "\n" + r.text[:600])
+                except Exception as e:
+                    st.error(str(e))
+
     def seat_badge(cnt):
         try:
             n = int(cnt)
@@ -338,7 +382,10 @@ def render_bus_info():
             unsafe_allow_html=True,
         )
 
-        station_id = fetch_station_id(mobile_no, service_key)
+        station_name = cfg.get("stationName", "")
+        # stationId 하드코딩 우선, 없으면 API 검색
+        station_id = cfg.get("stationId", "").strip() or \
+                     fetch_station_id(station_name, mobile_no, service_key)
         if not station_id:
             st.warning(f"정류소 {mobile_no} 의 ID를 찾을 수 없습니다.")
             continue
