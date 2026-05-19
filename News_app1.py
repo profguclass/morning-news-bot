@@ -202,6 +202,188 @@ def render_weather():
     st.markdown(table_html, unsafe_allow_html=True)
 
 
+
+# ─────────────────────────────────────────────
+# 버스 도착 정보
+#   경기버스 Open API (공공데이터포털 serviceKey 필요)
+#   Streamlit Secrets: BUS_SERVICE_KEY = "발급받은키"
+#   정류소 번호(mobileNo)로 stationId를 런타임에 조회
+# ─────────────────────────────────────────────
+
+# 관심 정류소 설정: {표시명: (정류소번호, 보고싶은노선목록)}
+BUS_STOPS = {
+    "조원고등학교 (조원뉴타운방면)": {
+        "mobileNo": "01249",
+        "routes":   ["16-2"],
+    },
+    "한일타운 (서울방면)": {
+        "mobileNo": "01125",
+        "routes":   ["7770"],
+    },
+    "경기남부보훈지청": {
+        "mobileNo": "01285",
+        "routes":   ["19", "99", "99-2"],
+    },
+}
+
+GBIS_BASE = "https://apis.data.go.kr/6410000"
+
+
+@st.cache_data(ttl=60)   # 버스 정보는 1분 캐시
+def fetch_bus_station_id(mobile_no: str, service_key: str) -> str | None:
+    """정류소 번호(mobileNo)로 stationId를 조회합니다."""
+    try:
+        url = (
+            f"{GBIS_BASE}/busstationservice/v2/getBusStationListv2"
+            f"?serviceKey={service_key}&keyword={mobile_no}&format=json"
+        )
+        r = requests.get(url, timeout=8)
+        data = r.json()
+        items = (data.get("response", {})
+                     .get("msgBody", {})
+                     .get("busStationList", []))
+        if isinstance(items, dict):
+            items = [items]
+        for item in items:
+            if str(item.get("mobileNo", "")) == str(mobile_no):
+                return str(item.get("stationId", ""))
+        return None
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=60)
+def fetch_bus_arrivals(station_id: str, service_key: str) -> list:
+    """정류소 ID로 전체 버스 도착 목록을 조회합니다."""
+    try:
+        url = (
+            f"{GBIS_BASE}/busarrivalservice/v2/getBusArrivalListv2"
+            f"?serviceKey={service_key}&stationId={station_id}&format=json"
+        )
+        r = requests.get(url, timeout=8)
+        data = r.json()
+        items = (data.get("response", {})
+                     .get("msgBody", {})
+                     .get("busArrivalList", []))
+        if isinstance(items, dict):
+            items = [items]
+        return items if isinstance(items, list) else []
+    except Exception:
+        return []
+
+
+def _min_sec(predict_time) -> str:
+    """예측시간(초)을 '약 N분' 형식으로 변환합니다."""
+    try:
+        secs = int(predict_time)
+        if secs <= 0:
+            return "곧 도착"
+        m, s = divmod(secs, 60)
+        if m == 0:
+            return f"{s}초"
+        return f"약 {m}분 {s}초"
+    except Exception:
+        return "-"
+
+
+def render_bus_info():
+    """버스 도착 정보를 날씨 아래에 표시합니다."""
+    service_key = st.secrets.get("BUS_SERVICE_KEY", "")
+    if not service_key:
+        st.info("버스 도착 정보를 보려면 Streamlit Settings > Secrets에 BUS_SERVICE_KEY를 등록하세요. 공공데이터포털(data.go.kr)에서 무료 신청 가능합니다.")
+        return
+
+    for stop_name, cfg in BUS_STOPS.items():
+        st.markdown(f"**🚏 {stop_name}**")
+        mobile_no  = cfg["mobileNo"]
+        target_routes = [r.replace("-", "").lower() for r in cfg["routes"]]
+
+        station_id = fetch_bus_station_id(mobile_no, service_key)
+        if not station_id:
+            st.warning(f"정류소 번호 {mobile_no} 의 ID를 찾을 수 없습니다.")
+            continue
+
+        arrivals = fetch_bus_arrivals(station_id, service_key)
+        if not arrivals:
+            st.warning("현재 도착 예정 버스 정보가 없습니다.")
+            continue
+
+        # 관심 노선만 필터
+        filtered = [
+            a for a in arrivals
+            if a.get("routeName", "").replace("-", "").lower() in target_routes
+        ]
+        if not filtered:
+            st.warning(f"현재 관심 노선({', '.join(cfg['routes'])}) 운행 정보가 없습니다.")
+            continue
+
+        def seat_badge(cnt):
+            try:
+                n = int(cnt)
+                color = "#00c0f0" if n > 5 else ("#ffaa00" if n > 0 else "#ff4b4b")
+                return f"<span style='color:{color}'>{n}석</span>"
+            except Exception:
+                return "-"
+
+        rows_html = ""
+        for a in filtered:
+            route    = a.get("routeName", "-")
+            pred1    = _min_sec(a.get("predictTime1", 0))
+            pred2    = _min_sec(a.get("predictTime2", 0))
+            remain1  = a.get("remainSeatCnt1", "-")
+            remain2  = a.get("remainSeatCnt2", "-")
+            loc1     = a.get("locationNo1", "-")
+            loc2     = a.get("locationNo2", "-")
+            # 현재 위치 정류소명 (API 필드: stationName1/2 또는 prevStationName1/2)
+            name1    = (a.get("stationName1")
+                        or a.get("prevStationName1")
+                        or a.get("currentStationName1", ""))
+            name2    = (a.get("stationName2")
+                        or a.get("prevStationName2")
+                        or a.get("currentStationName2", ""))
+
+            def loc_str(loc, name):
+                parts = []
+                if name:
+                    parts.append(name)
+                try:
+                    parts.append(f"{int(loc)}번째 전")
+                except Exception:
+                    if str(loc) not in ("", "-"):
+                        parts.append(f"{loc}번째 전")
+                return "<br>".join(parts) if parts else "-"
+
+            rows_html += (
+                f"<tr>"
+                f"<td style='padding:5px 12px; font-weight:700; font-size:1.05em'>🚌 {route}</td>"
+                f"<td style='padding:5px 12px; text-align:center'>"
+                f"  <b style='color:#ff4b4b'>{pred1}</b><br>"
+                f"  <span style='font-size:0.8em; color:#aaa'>{loc_str(loc1, name1)}</span></td>"
+                f"<td style='padding:5px 12px; text-align:center'>"
+                f"  <b style='color:#ffaa00'>{pred2}</b><br>"
+                f"  <span style='font-size:0.8em; color:#aaa'>{loc_str(loc2, name2)}</span></td>"
+                f"<td style='padding:5px 12px; text-align:center'>{seat_badge(remain1)}</td>"
+                f"<td style='padding:5px 12px; text-align:center'>{seat_badge(remain2)}</td>"
+                f"</tr>"
+            )
+
+        table_html = f"""
+        <table style='width:100%; border-collapse:collapse; font-size:0.9em; margin-bottom:8px'>
+          <thead>
+            <tr style='background:rgba(255,255,255,0.07); font-size:0.82em'>
+              <th style='padding:5px 12px; text-align:left'>노선</th>
+              <th style='padding:5px 12px'>1번째 버스</th>
+              <th style='padding:5px 12px'>2번째 버스</th>
+              <th style='padding:5px 12px'>잔여석①</th>
+              <th style='padding:5px 12px'>잔여석②</th>
+            </tr>
+          </thead>
+          <tbody>{rows_html}</tbody>
+        </table>
+        """
+        st.markdown(table_html, unsafe_allow_html=True)
+
+
 # ─────────────────────────────────────────────
 # 주식 데이터
 #   국내 지수·종목 → 네이버 금융 모바일 API (전용)
@@ -579,6 +761,10 @@ st.divider()
 # ── 날씨 ──────────────────────────────────────
 st.subheader("🌤 오늘의 날씨 — 경기도 수원")
 render_weather()
+
+# ── 버스 도착 정보 ─────────────────────────────
+st.subheader("🚌 버스 도착 정보")
+render_bus_info()
 st.divider()
 
 # ── 주식 시장 ─────────────────────────────────
