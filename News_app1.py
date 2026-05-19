@@ -38,7 +38,12 @@ def clean_news_url(raw_url):
 # ─────────────────────────────────────────────
 # RSS 뉴스 수집
 # ─────────────────────────────────────────────
-def get_rss_news(url, limit=10, do_clean_url=False):
+def get_rss_news(url, limit=10, do_clean_url=False, silent=False):
+    """
+    RSS 피드를 수집합니다.
+    silent=True 이면 오류를 화면에 표시하지 않고 조용히 빈 리스트를 반환합니다.
+    (여러 소스를 순회하는 경우 사용)
+    """
     news_list = []
     try:
         res = requests.get(url, headers=HEADERS, timeout=10)
@@ -54,7 +59,8 @@ def get_rss_news(url, limit=10, do_clean_url=False):
                 desc = desc_soup.get_text(separator=" ", strip=True)[:180]
             news_list.append({"title": title, "link": link, "desc": desc})
     except Exception as e:
-        st.error(f"뉴스 수집 오류 ({url}): {e}")
+        if not silent:
+            st.error(f"뉴스 수집 오류 ({url}): {e}")
     return news_list
 
 
@@ -348,10 +354,6 @@ KR_PAPERS = {
     "네이버 뉴스":  [
         "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",   # 구글 뉴스로 종합 대체
     ],
-    "연합뉴스":     [
-        "https://www.yna.co.kr/RSS/headline.xml",
-        "https://www.yonhapnewstv.co.kr/category/news/feed/",
-    ],
     "조선일보":     [
         "https://www.chosun.com/arc/outboundfeeds/rss/?outputType=xml",
         "https://www.chosun.com/rss/",
@@ -386,7 +388,7 @@ KR_ECO_SOURCES = [
 def get_paper_news(url_list: list, limit: int = 8) -> list:
     """url_list를 순서대로 시도, 기사가 있으면 반환."""
     for url in url_list:
-        result = get_rss_news(url, limit, do_clean_url=False)
+        result = get_rss_news(url, limit, do_clean_url=False, silent=True)
         if result:
             return result
     return []
@@ -405,7 +407,7 @@ def fetch_eco_news(limit_per_source: int = 5) -> tuple:
     combined = []
     used_sources = []
     for label, url in KR_ECO_SOURCES:
-        articles = get_rss_news(url, limit_per_source, do_clean_url=False)
+        articles = get_rss_news(url, limit_per_source, do_clean_url=False, silent=True)
         if articles:
             used_sources.append(label)
             for a in articles:
