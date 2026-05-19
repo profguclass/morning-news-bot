@@ -157,26 +157,49 @@ def render_weather():
         f"🌬 바람 {cur['wind']:.1f} m/s"
     )
 
-    # ── 7일 예보 카드
+    # ── 7일 예보 테이블
     st.markdown("##### 📅 7일 예보")
-    cols = st.columns(7)
-    for col, day in zip(cols, w["forecast"]):
+    weekdays = ["월","화","수","목","금","토","일"]
+    rows = []
+    for day in w["forecast"]:
         date_obj = datetime.strptime(day["date"], "%Y-%m-%d")
-        weekdays = ["월","화","수","목","금","토","일"]
         wd = weekdays[date_obj.weekday()]
         label = f"{date_obj.month}/{date_obj.day}({wd})"
-        with col:
-            st.markdown(
-                f"<div style='text-align:center; font-size:0.78em; line-height:1.6'>"
-                f"<b>{label}</b><br>"
-                f"<span style='font-size:1.5em'>{day['emoji']}</span><br>"
-                f"{day['desc']}<br>"
-                f"<span style='color:#e63946'>▲{day['t_max']:.0f}°</span> "
-                f"<span style='color:#0077b6'>▼{day['t_min']:.0f}°</span><br>"
-                f"💧{day['precip']:.1f}mm"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
+        rows.append({
+            "날짜":   label,
+            "날씨":   f"{day['emoji']} {day['desc']}",
+            "최고":   f"🌡 {day['t_max']:.0f}°C",
+            "최저":   f"🌡 {day['t_min']:.0f}°C",
+            "강수량": f"💧 {day['precip']:.1f}mm",
+            "최대풍속": f"🌬 {day['wind_max']:.1f}m/s",
+        })
+
+    # HTML 테이블로 렌더링 (색상 강조 포함)
+    header = "<tr>" + "".join(
+        f"<th style='padding:6px 12px; text-align:center; border-bottom:2px solid #555;'>{k}</th>"
+        for k in rows[0].keys()
+    ) + "</tr>"
+
+    body = ""
+    for i, row in enumerate(rows):
+        bg = "rgba(255,255,255,0.04)" if i % 2 == 0 else "transparent"
+        cells = ""
+        for k, v in row.items():
+            color = ""
+            if k == "최고":
+                color = "color:#e63946;"
+            elif k == "최저":
+                color = "color:#4da6ff;"
+            cells += f"<td style='padding:6px 12px; text-align:center; {color}'>{v}</td>"
+        body += f"<tr style='background:{bg}'>{cells}</tr>"
+
+    table_html = f"""
+    <table style='width:100%; border-collapse:collapse; font-size:0.88em;'>
+      <thead style='background:rgba(255,255,255,0.07);'>{header}</thead>
+      <tbody>{body}</tbody>
+    </table>
+    """
+    st.markdown(table_html, unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────────
@@ -302,36 +325,77 @@ def fetch_market_data():
     return results
 
 
-def format_metric(d: dict) -> tuple:
+def _market_row_html(name: str, d: dict) -> str:
+    """지수·종목 한 행의 HTML을 반환합니다."""
     if "error" in d or not d.get("close"):
-        return "N/A", "–"
+        return (
+            f"<tr><td>{name}</td>"
+            f"<td style='text-align:right'>N/A</td>"
+            f"<td style='text-align:right'>–</td>"
+            f"<td style='text-align:right'>–</td></tr>"
+        )
     close = d["close"]
+    chg   = d.get("chg", 0.0)
     pct   = d.get("pct", 0.0)
-    val   = f"{close:,.2f}"
+
     if pct > 0:
-        delta = f"▲ {pct:.2f}%"
+        color  = "#ff4b4b"          # 선명한 빨강 (상승)
+        arrow  = "▲"
+        bg     = "rgba(255,75,75,0.10)"
     elif pct < 0:
-        delta = f"▼ {abs(pct):.2f}%"
+        color  = "#00c0f0"          # 선명한 파랑 (하락)
+        arrow  = "▼"
+        bg     = "rgba(0,192,240,0.10)"
     else:
-        delta = f"► {pct:.2f}%"
-    return val, delta
+        color  = "#aaaaaa"
+        arrow  = "►"
+        bg     = "transparent"
+
+    return (
+        f"<tr style='background:{bg}'>"
+        f"<td style='padding:6px 14px; font-weight:600'>{name}</td>"
+        f"<td style='padding:6px 14px; text-align:right; font-variant-numeric:tabular-nums'>"
+        f"  {close:,.2f}</td>"
+        f"<td style='padding:6px 14px; text-align:right; color:{color}; font-weight:700'>"
+        f"  {arrow} {abs(chg):,.2f}</td>"
+        f"<td style='padding:6px 14px; text-align:right; color:{color}; font-weight:700'>"
+        f"  {arrow} {abs(pct):.2f}%</td>"
+        f"</tr>"
+    )
+
+
+def _market_table(title: str, names: list, data: dict) -> None:
+    header = (
+        "<thead><tr style='background:rgba(255,255,255,0.08); font-size:0.82em;'>"
+        "<th style='padding:6px 14px; text-align:left'>종목</th>"
+        "<th style='padding:6px 14px; text-align:right'>현재가</th>"
+        "<th style='padding:6px 14px; text-align:right'>전일비</th>"
+        "<th style='padding:6px 14px; text-align:right'>등락률</th>"
+        "</tr></thead>"
+    )
+    rows = "".join(_market_row_html(n, data.get(n, {})) for n in names)
+    st.markdown(
+        f"<div style='font-size:0.9em'>"
+        f"<table style='width:100%; border-collapse:collapse;'>"
+        f"{header}<tbody>{rows}</tbody></table></div>",
+        unsafe_allow_html=True,
+    )
 
 
 def render_indices(data):
     all_indices = {**KR_INDICES, **GLOBAL_INDICES}
-    cols = st.columns(len(all_indices))
-    for col, name in zip(cols, all_indices.keys()):
-        val, delta = format_metric(data.get(name, {}))
-        with col:
-            st.metric(label=name, value=val, delta=delta)
+    col_kr, col_gl = st.columns(2)
+    with col_kr:
+        st.caption("🇰🇷 국내 지수")
+        _market_table("국내 지수", list(KR_INDICES.keys()), data)
+    with col_gl:
+        st.caption("🌐 해외 지수")
+        _market_table("해외 지수", list(GLOBAL_INDICES.keys()), data)
 
 
 def render_watchlist(data):
-    cols = st.columns(len(WATCHLIST))
-    for col, name in zip(cols, WATCHLIST.keys()):
-        val, delta = format_metric(data.get(name, {}))
-        with col:
-            st.metric(label=name, value=val, delta=delta)
+    st.caption("🔍 관심 종목")
+    _market_table("관심 종목", list(WATCHLIST.keys()), data)
 
 
 # ─────────────────────────────────────────────
@@ -457,41 +521,21 @@ EN_PAPERS = {
 #   1순위: korea.kr 공식 RSS (*.xml)
 #   2순위: 구글 뉴스 키워드 검색 RSS (korea.kr 차단 시 자동 폴백)
 # ─────────────────────────────────────────────
-# GOV_TABS: 각 항목에 대체 URL 목록 지정 (순서대로 시도)
 GOV_TABS = {
-    "📋 보도자료":        [
-        "https://www.korea.kr/rss/pressRelease.xml",   # 대소문자 변형1
-        "https://www.korea.kr/rss/pressrelease.xml",   # 변형2
-        "https://www.korea.kr/briefing/pressReleaseList.do?call_from=rsslink",
-    ],
-    "🏢 부처브리핑":      [
-        "https://www.korea.kr/rss/ebriefing.xml",
-    ],
-    "🏛️ 대통령실":       [
-        "https://www.korea.kr/rss/president.xml",
-        "https://www.korea.kr/rss/presidentialOffice.xml",
-        "https://www1.president.go.kr/rss/news.xml",   # 대통령실 직접 RSS
-    ],
-    "📜 국무회의":        [
-        "https://www.korea.kr/rss/cabinet.xml",
-    ],
-    "✅ 사실은이렇습니다": [
-        "https://www.korea.kr/rss/fact.xml",
-    ],
+    "📋 보도자료":        "https://www.korea.kr/rss/pressrelease.xml",
+    "🏢 부처브리핑":      "https://www.korea.kr/rss/ebriefing.xml",
+    "🏛️ 대통령실":       "https://www.korea.kr/rss/president.xml",
+    "📜 국무회의":        "https://www.korea.kr/rss/cabinet.xml",
+    "✅ 사실은이렇습니다": "https://www.korea.kr/rss/fact.xml",
 }
 
 
 def fetch_gov_news(limit: int = 15) -> dict:
-    """정부 탭별로 각각 수집합니다. URL 목록 순서대로 시도."""
-    result = {}
-    for name, urls in GOV_TABS.items():
-        articles = []
-        for url in urls:
-            articles = get_rss_news(url, limit, do_clean_url=False, silent=True)
-            if articles:
-                break
-        result[name] = articles
-    return result
+    """정부 탭별로 각각 수집합니다."""
+    return {
+        name: get_rss_news(url, limit, do_clean_url=False, silent=True)
+        for name, url in GOV_TABS.items()
+    }
 
 
 @st.cache_data(ttl=3600)
@@ -544,7 +588,6 @@ with st.spinner("시장 데이터를 불러오는 중..."):
 
 render_indices(market_data)
 
-st.subheader("🔍 관심 종목")
 render_watchlist(market_data)
 st.caption("※ 국내 종목·지수: 네이버 금융 API | 해외 지수·종목: Yahoo Finance | 투자 판단 참고용")
 st.divider()
