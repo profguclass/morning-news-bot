@@ -2,7 +2,6 @@ import requests
 from bs4 import BeautifulSoup
 import streamlit as st
 from urllib.parse import urlparse, urlunparse
-import yfinance as yf
 from datetime import datetime
 import pytz
 
@@ -11,6 +10,14 @@ import pytz
 # ─────────────────────────────────────────────
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+}
+
+# Yahoo Finance API용 헤더
+YF_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "application/json",
 }
 
 OPENWEATHER_API_KEY = "여기에_무료_API_키_입력"   # https://openweathermap.org/api 에서 발급
@@ -77,6 +84,8 @@ def fetch_weather():
         )
         r = requests.get(url, timeout=8)
         data = r.json()
+        if "main" not in data:
+            return {"error": data.get("message", "API 응답 오류")}
         temp      = data["main"]["temp"]
         feels     = data["main"]["feels_like"]
         humidity  = data["main"]["humidity"]
@@ -91,10 +100,10 @@ def fetch_weather():
     except Exception as e:
         return {"error": str(e)}
 
+
 def render_weather():
     w = fetch_weather()
     if "error" in w:
-        # API 키 미입력 또는 오류 시 안내 메시지
         st.info(
             "🌤 날씨를 불러오려면 `OPENWEATHER_API_KEY` 변수에 "
             "[무료 API 키](https://home.openweathermap.org/api_keys)를 입력하세요. "
@@ -115,7 +124,8 @@ def render_weather():
 
 
 # ─────────────────────────────────────────────
-# 주식 데이터 (yfinance)
+# 주식 데이터 — yfinance 없이 Yahoo Finance v8 API 직접 호출
+#   추가 라이브러리 불필요 (requests만 사용)
 # ─────────────────────────────────────────────
 MARKET_INDICES = {
     "KOSPI":   "^KS11",
@@ -127,138 +137,123 @@ MARKET_INDICES = {
 }
 
 WATCHLIST = {
-    "삼성전자 (005930.KS)":            "005930.KS",
-    "GKL (114090.KS)":                 "114090.KS",
-    "KODEX 조선TOP10 (455480.KS)":     "455480.KS",
-    "KODEX AI반도체TOP2+ (395160.KS)": "395160.KS",
-    "Tesla (TSLA)":                    "TSLA",
+    "삼성전자":        "005930.KS",
+    "GKL":             "114090.KS",
+    "KODEX 조선TOP10": "455480.KS",
+    "KODEX AI반도체":  "395160.KS",
+    "Tesla":           "TSLA",
 }
+
+
+def fetch_yahoo_quote(ticker: str) -> dict:
+    """
+    Yahoo Finance v8 chart API를 requests로 직접 호출.
+    반환: {"close": float, "pct": float, "chg": float}
+    또는  {"error": str}
+    """
+    safe_ticker = requests.utils.quote(ticker, safe="")
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{safe_ticker}?interval=1d&range=2d"
+    try:
+        r = requests.get(url, headers=YF_HEADERS, timeout=8)
+        data = r.json()
+        result = data.get("chart", {}).get("result")
+        if not result:
+            err = data.get("chart", {}).get("error", {})
+            return {"error": str(err)}
+
+        closes = result[0].get("indicators", {}).get("quote", [{}])[0].get("close", [])
+        closes = [c for c in closes if c is not None]   # None 제거
+
+        if len(closes) >= 2:
+            prev_close, close = closes[-2], closes[-1]
+        elif len(closes) == 1:
+            prev_close = close = closes[-1]
+        else:
+            return {"error": "데이터 없음"}
+
+        chg = close - prev_close
+        pct = (chg / prev_close * 100) if prev_close else 0.0
+        return {"close": close, "chg": chg, "pct": pct}
+    except Exception as e:
+        return {"error": str(e)}
+
 
 @st.cache_data(ttl=600)   # 10분 캐시
 def fetch_market_data():
     results = {}
     for name, ticker in {**MARKET_INDICES, **WATCHLIST}.items():
-        try:
-            t = yf.Ticker(ticker)
-            hist = t.history(period="2d", interval="1d")
-            if len(hist) >= 2:
-                prev  = hist["Close"].iloc[-2]
-                close = hist["Close"].iloc[-1]
-                chg   = close - prev
-                pct   = chg / prev * 100
-            elif len(hist) == 1:
-                close = hist["Close"].iloc[-1]
-                chg, pct = 0.0, 0.0
-                prev = close
-            else:
-                close = prev = chg = pct = None
-
-            results[name] = {
-                "ticker": ticker,
-                "close":  close,
-                "chg":    chg,
-                "pct":    pct,
-            }
-        except Exception as e:
-            results[name] = {"ticker": ticker, "close": None, "error": str(e)}
+        results[name] = fetch_yahoo_quote(ticker)
     return results
 
-def arrow_color(pct):
-    if pct is None:
-        return "gray", "–"
+
+def format_metric(d: dict) -> tuple:
+    """(value_str, delta_str) 반환"""
+    if "error" in d or d.get("close") is None:
+        return "N/A", "–"
+    close = d["close"]
+    pct   = d.get("pct", 0.0)
+    val   = f"{close:,.2f}"
     if pct > 0:
-        return "#e63946", f"▲ {pct:.2f}%"
+        delta = f"▲ {pct:.2f}%"
     elif pct < 0:
-        return "#0077b6", f"▼ {abs(pct):.2f}%"
+        delta = f"▼ {abs(pct):.2f}%"
     else:
-        return "gray", f"► {pct:.2f}%"
+        delta = f"► {pct:.2f}%"
+    return val, delta
+
 
 def render_market_indices(data):
     cols = st.columns(len(MARKET_INDICES))
     for col, name in zip(cols, MARKET_INDICES.keys()):
-        d = data.get(name, {})
-        close = d.get("close")
-        pct   = d.get("pct")
-        color, badge = arrow_color(pct)
+        val, delta = format_metric(data.get(name, {}))
         with col:
-            st.metric(
-                label=name,
-                value=f"{close:,.2f}" if close else "N/A",
-                delta=badge if pct is not None else "N/A",
-            )
+            st.metric(label=name, value=val, delta=delta)
+
 
 def render_watchlist(data):
     cols = st.columns(len(WATCHLIST))
     for col, name in zip(cols, WATCHLIST.keys()):
-        d = data.get(name, {})
-        close = d.get("close")
-        pct   = d.get("pct")
-        color, badge = arrow_color(pct)
+        val, delta = format_metric(data.get(name, {}))
         with col:
-            label_short = name.split(" (")[0]   # 괄호 앞 이름만
-            st.metric(
-                label=label_short,
-                value=f"{close:,.2f}" if close else "N/A",
-                delta=badge if pct is not None else "N/A",
-            )
+            st.metric(label=name, value=val, delta=delta)
 
 
 # ─────────────────────────────────────────────
 # RSS 소스 정의
 # ─────────────────────────────────────────────
 URLS = {
-    # NYT
     "nyt_top": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
     "nyt_op":  "https://rss.nytimes.com/services/xml/rss/nyt/Opinion.xml",
-
-    # WSJ – feeds.content.dowjones.io (구 feeds.a.dj.com 대체)
     "wsj_top": "https://feeds.content.dowjones.io/public/rss/RSSWorldNews",
     "wsj_op":  "https://feeds.content.dowjones.io/public/rss/RSSOpinion",
-
-    # Korea Times (영자신문)
     "kt_top":  "https://feed.koreatimes.co.kr/k/allnews.xml",
 }
 
 # ─────────────────────────────────────────────
 # 한국 뉴스 폴백 체인
-#   우선순위: 네이버 파트너 언론사 RSS
-#             → 다음 미디어 RSS (구주소 일부 생존)
-#             → 구글 뉴스 RSS (최후 보루)
+#   네이버 파트너 언론사 RSS → 다음 미디어 RSS → 구글 뉴스
 # ─────────────────────────────────────────────
-
-# 종합 뉴스 후보군
 KR_TOP_CANDIDATES = [
-    # ── 네이버 파트너 언론사 직접 RSS ──
-    ("네이버/연합뉴스",   "https://www.yna.co.kr/RSS/headline.xml",              False),
-    ("네이버/MBC",        "https://imnews.imbc.com/rss/news/news_00.xml",         False),
-    ("네이버/KBS",        "https://news.kbs.co.kr/rss/rss.do?source=politics",    False),
-    ("네이버/동아일보",   "https://rss.donga.com/total.xml",                       False),
-    ("네이버/경향신문",   "https://www.khan.co.kr/rss/rssdata/total_news.xml",     False),
-    ("네이버/한겨레",     "https://www.hani.co.kr/rss/",                           False),
-    # ── 다음 미디어 RSS ──
-    ("다음/종합",         "https://media.daum.net/rss/today/primary/all/rss2.xml", False),
-    # ── 구글 뉴스 ──
-    ("구글/종합",         "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",   False),
+    ("네이버/연합뉴스",  "https://www.yna.co.kr/RSS/headline.xml",                False),
+    ("네이버/MBC",       "https://imnews.imbc.com/rss/news/news_00.xml",           False),
+    ("네이버/KBS",       "https://news.kbs.co.kr/rss/rss.do?source=politics",      False),
+    ("네이버/동아일보",  "https://rss.donga.com/total.xml",                         False),
+    ("네이버/경향신문",  "https://www.khan.co.kr/rss/rssdata/total_news.xml",       False),
+    ("네이버/한겨레",    "https://www.hani.co.kr/rss/",                             False),
+    ("다음/종합",        "https://media.daum.net/rss/today/primary/all/rss2.xml",   False),
+    ("구글/종합",        "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",     False),
 ]
 
-# 경제 뉴스 후보군
 KR_ECO_CANDIDATES = [
-    # ── 네이버 파트너 언론사 직접 RSS ──
-    ("네이버/매일경제",   "https://www.mk.co.kr/rss/40300001/",                     False),
-    ("네이버/한국경제",   "https://www.hankyung.com/feed/all-news",                  False),
-    ("네이버/서울경제",   "https://www.sedaily.com/RssService/RSS",                  False),
-    # ── 다음 미디어 RSS ──
-    ("다음/경제",         "https://media.daum.net/rss/part/primary/economic/rss2.xml", False),
-    # ── 구글 뉴스 ──
-    ("구글/경제",         "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ko&gl=KR&ceid=KR:ko", False),
+    ("네이버/매일경제",  "https://www.mk.co.kr/rss/40300001/",                       False),
+    ("네이버/한국경제",  "https://www.hankyung.com/feed/all-news",                    False),
+    ("네이버/서울경제",  "https://www.sedaily.com/RssService/RSS",                    False),
+    ("다음/경제",        "https://media.daum.net/rss/part/primary/economic/rss2.xml", False),
+    ("구글/경제",        "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ko&gl=KR&ceid=KR:ko", False),
 ]
 
 
-def get_rss_with_fallback(candidates: list, limit: int = 10) -> tuple[list, str]:
-    """
-    후보 RSS URL 목록을 순서대로 시도하여 기사가 있으면 반환.
-    Returns (news_list, source_label)
-    """
+def get_rss_with_fallback(candidates: list, limit: int = 10):
     for label, url, do_clean in candidates:
         result = get_rss_news(url, limit, do_clean)
         if result:
@@ -271,15 +266,13 @@ def get_rss_with_fallback(candidates: list, limit: int = 10) -> tuple[list, str]
 # ─────────────────────────────────────────────
 @st.cache_data(ttl=3600)
 def fetch_all_news():
-    nyt_news    = get_rss_news(URLS["nyt_top"],    10, True)
-    nyt_opinion = get_rss_news(URLS["nyt_op"],      5, True)
-    wsj_news    = get_rss_news(URLS["wsj_top"],    10, True)
-    wsj_opinion = get_rss_news(URLS["wsj_op"],      5, True)
-    kt_news     = get_rss_news(URLS["kt_top"],     10, False)
-
+    nyt_news    = get_rss_news(URLS["nyt_top"],  10, True)
+    nyt_opinion = get_rss_news(URLS["nyt_op"],    5, True)
+    wsj_news    = get_rss_news(URLS["wsj_top"],  10, True)
+    wsj_opinion = get_rss_news(URLS["wsj_op"],    5, True)
+    kt_news     = get_rss_news(URLS["kt_top"],   10, False)
     kr_top, kr_top_src = get_rss_with_fallback(KR_TOP_CANDIDATES, 10)
     kr_eco, kr_eco_src = get_rss_with_fallback(KR_ECO_CANDIDATES, 10)
-
     return nyt_news, nyt_opinion, wsj_news, wsj_opinion, kt_news, kr_top, kr_top_src, kr_eco, kr_eco_src
 
 
@@ -288,9 +281,8 @@ def fetch_all_news():
 # ─────────────────────────────────────────────
 st.set_page_config(page_title="데일리 뉴스 브리핑", page_icon="📰", layout="wide")
 
-# ── 헤더 ──────────────────────────────────────
 st.title("📰 Daily News Dashboard")
-kst = pytz.timezone("Asia/Seoul")
+kst     = pytz.timezone("Asia/Seoul")
 now_kst = datetime.now(kst).strftime("%Y년 %m월 %d일 %H:%M KST")
 st.caption(f"마지막 갱신: {now_kst}")
 
