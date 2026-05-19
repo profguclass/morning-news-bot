@@ -379,6 +379,7 @@ KR_PAPERS = {
         "https://www.khan.co.kr/rss/rssdata/total_news.xml",
         "https://khan.co.kr/rss/rssdata/kh_news.xml",
     ],
+    "💼 경제뉴스":   [],   # 경제 뉴스 탭 — 데이터는 fetch_eco_news()에서 별도 수집
 }
 
 # 경제 뉴스 소스 (폴백 체인)
@@ -448,20 +449,22 @@ EN_PAPERS = {
 # ─────────────────────────────────────────────
 # 정부 보도자료 RSS (대한민국 정책브리핑 korea.kr)
 # ─────────────────────────────────────────────
-GOV_RSS_SOURCES = [
-    ("정책브리핑/보도자료",  "https://www.korea.kr/rss/pressRelease.do"),
-    ("정책브리핑/정책뉴스",  "https://www.korea.kr/rss/policyNews.do"),
-    ("정책브리핑/전체",      "https://www.korea.kr/rss/allNews.do"),
-]
+# 정책브리핑 공식 RSS — 탭별 개별 수집 (korea.kr/rss/*.xml)
+GOV_TABS = {
+    "📋 보도자료":   "https://www.korea.kr/rss/pressrelease.xml",
+    "🏢 부처브리핑": "https://www.korea.kr/rss/ebriefing.xml",
+    "🏛️ 대통령실":  "https://www.korea.kr/rss/president.xml",
+    "📜 국무회의":   "https://www.korea.kr/rss/cabinet.xml",
+    "✅ 사실은이렇습니다": "https://www.korea.kr/rss/fact.xml",
+}
 
 
-def fetch_gov_news(limit: int = 15) -> tuple:
-    """정부 보도자료를 수집합니다."""
-    for label, url in GOV_RSS_SOURCES:
-        result = get_rss_news(url, limit, do_clean_url=False, silent=True)
-        if result:
-            return result, label
-    return [], "없음"
+def fetch_gov_news(limit: int = 15) -> dict:
+    """정부 탭별로 각각 수집합니다."""
+    return {
+        name: get_rss_news(url, limit, do_clean_url=False, silent=True)
+        for name, url in GOV_TABS.items()
+    }
 
 
 @st.cache_data(ttl=3600)
@@ -480,10 +483,10 @@ def fetch_all_news():
     # 경제 뉴스
     kr_eco, kr_eco_src = fetch_eco_news(limit_per_source=5)
 
-    # 정부 보도자료
-    gov_news, gov_src = fetch_gov_news(limit=15)
+    # 정부 보도자료 (탭별)
+    gov_tabs_data = fetch_gov_news(limit=15)
 
-    return en_papers, kr_papers, kr_eco, kr_eco_src, gov_news, gov_src
+    return en_papers, kr_papers, kr_eco, kr_eco_src, gov_tabs_data
 
 
 # ─────────────────────────────────────────────
@@ -521,7 +524,7 @@ st.divider()
 
 # ── 뉴스 수집 ─────────────────────────────────
 with st.spinner("최신 뉴스를 수집하고 있습니다..."):
-    en_papers, kr_papers, kr_eco, kr_eco_src, gov_news, gov_src = fetch_all_news()
+    en_papers, kr_papers, kr_eco, kr_eco_src, gov_tabs_data = fetch_all_news()
 
 # ── 영자신문: 탭 형식 ─────────────────────────
 st.header("🌐 English News")
@@ -532,25 +535,27 @@ for tab, paper_name in zip(en_tabs, EN_PAPERS.keys()):
 
 st.divider()
 
-# ── 국내 뉴스: 신문사별 탭 ───────────────────
+# ── 국내 뉴스: 신문사별 탭 (경제뉴스 포함) ──
 st.header("📰 국내 주요 신문")
 kr_tabs = st.tabs(list(KR_PAPERS.keys()))
 for tab, (paper_name, _) in zip(kr_tabs, KR_PAPERS.items()):
     with tab:
-        render_news(kr_papers.get(paper_name, []))
+        if paper_name == "💼 경제뉴스":
+            st.caption(f"출처: {kr_eco_src}")
+            render_news(kr_eco, show_source=True)
+        else:
+            render_news(kr_papers.get(paper_name, []))
 
 st.divider()
 
-# ── 경제 뉴스 ─────────────────────────────────
-st.markdown(f"## 💼 경제 뉴스 <small style='color:gray;'>({kr_eco_src})</small>", unsafe_allow_html=True)
-render_news(kr_eco, show_source=True)
-
-st.divider()
-
-# ── 정부 보도자료 ──────────────────────────────
-st.markdown(f"## 🏛️ 오늘의 정부 소식 <small style='color:gray;'>({gov_src})</small>", unsafe_allow_html=True)
-st.caption("대한민국 정책브리핑(korea.kr) 보도자료 기반")
-if gov_news:
-    render_news(gov_news)
-else:
-    st.info("정부 보도자료를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.")
+# ── 정부 소식: 탭 형식 ───────────────────────
+st.header("🏛️ 오늘의 정부 소식")
+st.caption("출처: 대한민국 정책브리핑 (korea.kr)")
+gov_tabs = st.tabs(list(GOV_TABS.keys()))
+for tab, tab_name in zip(gov_tabs, GOV_TABS.keys()):
+    with tab:
+        news = gov_tabs_data.get(tab_name, [])
+        if news:
+            render_news(news)
+        else:
+            st.info("자료를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.")
