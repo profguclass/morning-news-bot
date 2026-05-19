@@ -296,6 +296,18 @@ def _fmt_time(predict_time_min, predict_time_sec=None) -> str:
         return "-"
 
 
+
+def render_bus_info():
+    """공공 API로 경기버스 도착 정보를 표시합니다."""
+    service_key = st.secrets.get("BUS_SERVICE_KEY", "")
+    if not service_key:
+        st.info(
+            "버스 도착 정보를 보려면 Streamlit Settings > Secrets에 "
+            "BUS_SERVICE_KEY를 등록하세요. "
+            "공공데이터포털(data.go.kr)에서 무료 신청 가능합니다."
+        )
+        return
+
     def seat_badge(cnt):
         try:
             n = int(cnt)
@@ -334,7 +346,7 @@ def _fmt_time(predict_time_min, predict_time_sec=None) -> str:
         arrivals = fetch_bus_arrivals(station_id, service_key)
         filtered = [
             a for a in arrivals
-            if a.get("routeName", "").replace("-", "").lower() in target_routes
+            if str(a.get("routeName", "")).replace("-", "").lower() in target_routes
         ]
         if not filtered:
             st.info(f"현재 관심 노선({route_labels}) 운행 정보가 없습니다.")
@@ -342,28 +354,26 @@ def _fmt_time(predict_time_min, predict_time_sec=None) -> str:
 
         rows_html = ""
         for a in filtered:
-            route  = str(a.get("routeName", "-"))
-            # 시간: predictTimeSec(초) 우선, 없으면 predictTime(분)
-            pred1  = _fmt_time(a.get("predictTime1", 0),  a.get("predictTimeSec1"))
-            pred2  = _fmt_time(a.get("predictTime2", 0),  a.get("predictTimeSec2"))
-            loc1   = a.get("locationNo1", "-")
-            loc2   = a.get("locationNo2", "-")
-            # 현재위치명: stationNm1/2 (확인된 필드명)
-            name1  = a.get("stationNm1") or a.get("stationName1") or a.get("prevStationName1", "")
-            name2  = a.get("stationNm2") or a.get("stationName2") or a.get("prevStationName2", "")
-            rem1   = seat_badge(a.get("remainSeatCnt1", "-"))
-            rem2   = seat_badge(a.get("remainSeatCnt2", "-"))
+            route = str(a.get("routeName", "-"))
+            pred1 = _fmt_time(a.get("predictTime1", 0), a.get("predictTimeSec1"))
+            pred2 = _fmt_time(a.get("predictTime2", 0), a.get("predictTimeSec2"))
+            loc1  = a.get("locationNo1", "-")
+            loc2  = a.get("locationNo2", "-")
+            name1 = a.get("stationNm1") or a.get("stationName1") or ""
+            name2 = a.get("stationNm2") or a.get("stationName2") or ""
+            rem1  = seat_badge(a.get("remainSeatCnt1", "-"))
+            rem2  = seat_badge(a.get("remainSeatCnt2", "-"))
             rows_html += (
                 f"<tr>"
-                f"<td style='padding:5px 12px; font-weight:700'>🚌 {route}</td>"
-                f"<td style='padding:5px 12px; text-align:center'>"
+                f"<td style='padding:5px 12px;font-weight:700'>🚌 {route}</td>"
+                f"<td style='padding:5px 12px;text-align:center'>"
                 f"  <b style='color:#ff4b4b'>{pred1}</b><br>"
                 f"  <span style='font-size:0.8em;color:#aaa'>{loc_str(loc1,name1)}</span></td>"
-                f"<td style='padding:5px 12px; text-align:center'>"
+                f"<td style='padding:5px 12px;text-align:center'>"
                 f"  <b style='color:#ffaa00'>{pred2}</b><br>"
                 f"  <span style='font-size:0.8em;color:#aaa'>{loc_str(loc2,name2)}</span></td>"
-                f"<td style='padding:5px 12px; text-align:center'>{rem1}</td>"
-                f"<td style='padding:5px 12px; text-align:center'>{rem2}</td>"
+                f"<td style='padding:5px 12px;text-align:center'>{rem1}</td>"
+                f"<td style='padding:5px 12px;text-align:center'>{rem2}</td>"
                 f"</tr>"
             )
 
@@ -379,6 +389,7 @@ def _fmt_time(predict_time_min, predict_time_sec=None) -> str:
             f"<tbody>{rows_html}</tbody></table>",
             unsafe_allow_html=True,
         )
+
 
 # ─────────────────────────────────────────────
 # 주식 데이터
