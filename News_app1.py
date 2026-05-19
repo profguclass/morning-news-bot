@@ -23,7 +23,7 @@ YF_HEADERS = {
     "Accept": "application/json",
 }
 
-OPENWEATHER_API_KEY = "여기에_무료_API_키_입력"   # https://openweathermap.org/api 에서 발급
+# Open-Meteo: 가입·API 키 불필요 (https://open-meteo.com)
 SUWON_LAT, SUWON_LON = 37.2636, 127.0286
 
 
@@ -70,27 +70,43 @@ def render_news(news_list):
 
 
 # ─────────────────────────────────────────────
-# 날씨 (OpenWeatherMap – 무료 플랜)
+# 날씨 (Open-Meteo — 가입·API키 불필요)
 # ─────────────────────────────────────────────
+# WMO 날씨 코드 → 한국어 설명 + 이모지
+WMO_DESC = {
+    0:  ("☀️", "맑음"),
+    1:  ("🌤", "대체로 맑음"), 2: ("⛅", "구름 조금"), 3: ("☁️", "흐림"),
+    45: ("🌫", "안개"), 48: ("🌫", "안개(착빙)"),
+    51: ("🌦", "이슬비(약)"), 53: ("🌦", "이슬비"), 55: ("🌧", "이슬비(강)"),
+    61: ("🌧", "비(약)"), 63: ("🌧", "비"), 65: ("🌧", "비(강)"),
+    71: ("🌨", "눈(약)"), 73: ("❄️", "눈"), 75: ("❄️", "눈(강)"),
+    80: ("🌦", "소나기(약)"), 81: ("🌧", "소나기"), 82: ("⛈", "소나기(강)"),
+    95: ("⛈", "뇌우"), 96: ("⛈", "뇌우+우박"), 99: ("⛈", "뇌우+강한우박"),
+}
+
 @st.cache_data(ttl=1800)
 def fetch_weather():
+    """Open-Meteo API — 가입·API키 불필요 (https://open-meteo.com)"""
     try:
         url = (
-            f"https://api.openweathermap.org/data/2.5/weather"
-            f"?lat={SUWON_LAT}&lon={SUWON_LON}"
-            f"&appid={OPENWEATHER_API_KEY}&units=metric&lang=kr"
+            "https://api.open-meteo.com/v1/forecast"
+            f"?latitude={SUWON_LAT}&longitude={SUWON_LON}"
+            "&current=temperature_2m,apparent_temperature,relative_humidity_2m"
+            ",wind_speed_10m,weathercode"
+            "&timezone=Asia%2FSeoul"
         )
-        r = requests.get(url, timeout=8)
+        r    = requests.get(url, timeout=8)
         data = r.json()
-        if "main" not in data:
-            return {"error": data.get("message", "API 응답 오류")}
+        cur  = data.get("current", {})
+        code = int(cur.get("weathercode", 0))
+        emoji, desc = WMO_DESC.get(code, ("🌡", f"코드 {code}"))
         return {
-            "temp":     data["main"]["temp"],
-            "feels":    data["main"]["feels_like"],
-            "humidity": data["main"]["humidity"],
-            "desc":     data["weather"][0]["description"],
-            "icon_url": f"https://openweathermap.org/img/wn/{data['weather'][0]['icon']}@2x.png",
-            "wind":     data["wind"]["speed"],
+            "temp":     cur.get("temperature_2m", 0),
+            "feels":    cur.get("apparent_temperature", 0),
+            "humidity": cur.get("relative_humidity_2m", 0),
+            "wind":     cur.get("wind_speed_10m", 0),
+            "emoji":    emoji,
+            "desc":     desc,
         }
     except Exception as e:
         return {"error": str(e)}
@@ -99,22 +115,14 @@ def fetch_weather():
 def render_weather():
     w = fetch_weather()
     if "error" in w:
-        st.info(
-            "🌤 날씨를 불러오려면 `OPENWEATHER_API_KEY` 변수에 "
-            "[무료 API 키](https://home.openweathermap.org/api_keys)를 입력하세요. "
-            f"(오류: {w['error']})"
-        )
+        st.warning(f"날씨 정보를 불러올 수 없습니다. ({w['error']})")
         return
-    col_icon, col_info = st.columns([1, 6])
-    with col_icon:
-        st.image(w["icon_url"], width=70)
-    with col_info:
-        st.markdown(
-            f"**경기도 수원** | {w['desc'].capitalize()} &nbsp;·&nbsp; "
-            f"🌡 **{w['temp']:.1f}°C** (체감 {w['feels']:.1f}°C) &nbsp;·&nbsp; "
-            f"💧 습도 {w['humidity']}% &nbsp;·&nbsp; "
-            f"🌬 바람 {w['wind']} m/s"
-        )
+    st.markdown(
+        f"{w['emoji']} &nbsp; **경기도 수원** | {w['desc']} &nbsp;·&nbsp; "
+        f"🌡 **{w['temp']:.1f}°C** (체감 {w['feels']:.1f}°C) &nbsp;·&nbsp; "
+        f"💧 습도 {w['humidity']}% &nbsp;·&nbsp; "
+        f"🌬 바람 {w['wind']} m/s"
+    )
 
 
 # ─────────────────────────────────────────────
@@ -445,6 +453,5 @@ for tab, (paper_name, _) in zip(tabs, KR_PAPERS.items()):
 st.divider()
 
 # ── 경제 뉴스 ─────────────────────────────────
-st.header(f"💼 경제 뉴스  <small style='font-size:0.6em; color:gray;'>({kr_eco_src})</small>",
-          anchor=False)
+st.markdown(f"## 💼 경제 뉴스 <small style='color:gray;'>({kr_eco_src})</small>", unsafe_allow_html=True)
 render_news(kr_eco)
