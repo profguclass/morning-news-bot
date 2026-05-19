@@ -2,16 +2,32 @@ import requests
 from bs4 import BeautifulSoup
 import streamlit as st
 from urllib.parse import urlparse, urlunparse
+import yfinance as yf
+from datetime import datetime
+import pytz
 
+# ─────────────────────────────────────────────
+# 기본 설정
+# ─────────────────────────────────────────────
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 }
 
+OPENWEATHER_API_KEY = "여기에_무료_API_키_입력"   # https://openweathermap.org/api 에서 발급
+SUWON_LAT, SUWON_LON = 37.2636, 127.0286
+
+# ─────────────────────────────────────────────
+# URL 정리
+# ─────────────────────────────────────────────
 def clean_news_url(raw_url):
     """스마트폰 앱 연동을 위한 URL 정리 (통계 꼬리표 제거)"""
     parsed = urlparse(raw_url)
     return urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
 
+
+# ─────────────────────────────────────────────
+# RSS 뉴스 수집
+# ─────────────────────────────────────────────
 def get_rss_news(url, limit=10, do_clean_url=False):
     """RSS 피드 주소에서 제목, 링크, 요약을 수집합니다."""
     news_list = []
@@ -19,77 +35,300 @@ def get_rss_news(url, limit=10, do_clean_url=False):
         res = requests.get(url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(res.content, features="xml")
         items = soup.find_all('item')[:limit]
-        
+
         for item in items:
-            title = item.title.text if item.title else "제목 없음"
-            raw_link = item.link.text if item.link else "#"
+            title = item.title.text.strip() if item.title else "제목 없음"
+            raw_link = item.link.text.strip() if item.link else "#"
             link = clean_news_url(raw_link) if do_clean_url else raw_link
-            
-            # 요약(description) 텍스트 추출 및 정제
+
             desc = ""
             if item.description:
-                # 구글 뉴스 등에서 섞여 나오는 html 태그를 제거하고 순수 텍스트만 추출
                 desc_soup = BeautifulSoup(item.description.text, "html.parser")
-                desc = desc_soup.get_text(separator=" ", strip=True)
-            
+                desc = desc_soup.get_text(separator=" ", strip=True)[:180]
+
             news_list.append({'title': title, 'link': link, 'desc': desc})
     except Exception as e:
         st.error(f"뉴스 수집 오류 ({url}): {e}")
     return news_list
 
-# --- 화면 출력용 보조 함수 ---
+
+# ─────────────────────────────────────────────
+# 뉴스 렌더링
+# ─────────────────────────────────────────────
 def render_news(news_list):
     """뉴스 리스트를 화면에 제목+요약 형태로 예쁘게 그려줍니다."""
     for i, news in enumerate(news_list, 1):
         st.markdown(f"**{i}. [{news['title']}]({news['link']})**")
         if news['desc']:
-            # 요약은 약간 작은 회색 글씨로 표시
             st.caption(news['desc'])
-        st.write("") # 기사 간의 간격을 위해 빈 줄 추가
+        st.write("")
 
-# --- Streamlit 화면 구성 ---
+
+# ─────────────────────────────────────────────
+# 날씨 (OpenWeatherMap – 무료 플랜)
+# ─────────────────────────────────────────────
+@st.cache_data(ttl=1800)
+def fetch_weather():
+    try:
+        url = (
+            f"https://api.openweathermap.org/data/2.5/weather"
+            f"?lat={SUWON_LAT}&lon={SUWON_LON}"
+            f"&appid={OPENWEATHER_API_KEY}&units=metric&lang=kr"
+        )
+        r = requests.get(url, timeout=8)
+        data = r.json()
+        temp      = data["main"]["temp"]
+        feels     = data["main"]["feels_like"]
+        humidity  = data["main"]["humidity"]
+        desc      = data["weather"][0]["description"]
+        icon_code = data["weather"][0]["icon"]
+        wind      = data["wind"]["speed"]
+        icon_url  = f"https://openweathermap.org/img/wn/{icon_code}@2x.png"
+        return {
+            "temp": temp, "feels": feels, "humidity": humidity,
+            "desc": desc, "icon_url": icon_url, "wind": wind
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+def render_weather():
+    w = fetch_weather()
+    if "error" in w:
+        # API 키 미입력 또는 오류 시 안내 메시지
+        st.info(
+            "🌤 날씨를 불러오려면 `OPENWEATHER_API_KEY` 변수에 "
+            "[무료 API 키](https://home.openweathermap.org/api_keys)를 입력하세요. "
+            f"(현재 오류: {w['error']})"
+        )
+        return
+
+    col_icon, col_info = st.columns([1, 5])
+    with col_icon:
+        st.image(w["icon_url"], width=70)
+    with col_info:
+        st.markdown(
+            f"**경기도 수원** | {w['desc'].capitalize()} &nbsp;·&nbsp; "
+            f"🌡 **{w['temp']:.1f}°C** (체감 {w['feels']:.1f}°C) &nbsp;·&nbsp; "
+            f"💧 습도 {w['humidity']}% &nbsp;·&nbsp; "
+            f"🌬 바람 {w['wind']} m/s"
+        )
+
+
+# ─────────────────────────────────────────────
+# 주식 데이터 (yfinance)
+# ─────────────────────────────────────────────
+MARKET_INDICES = {
+    "KOSPI":   "^KS11",
+    "KOSDAQ":  "^KQ11",
+    "S&P 500": "^GSPC",
+    "NASDAQ":  "^IXIC",
+    "DOW":     "^DJI",
+    "NIKKEI":  "^N225",
+}
+
+WATCHLIST = {
+    "삼성전자 (005930.KS)":            "005930.KS",
+    "GKL (114090.KS)":                 "114090.KS",
+    "KODEX 조선TOP10 (455480.KS)":     "455480.KS",
+    "KODEX AI반도체TOP2+ (395160.KS)": "395160.KS",
+    "Tesla (TSLA)":                    "TSLA",
+}
+
+@st.cache_data(ttl=600)   # 10분 캐시
+def fetch_market_data():
+    results = {}
+    for name, ticker in {**MARKET_INDICES, **WATCHLIST}.items():
+        try:
+            t = yf.Ticker(ticker)
+            hist = t.history(period="2d", interval="1d")
+            if len(hist) >= 2:
+                prev  = hist["Close"].iloc[-2]
+                close = hist["Close"].iloc[-1]
+                chg   = close - prev
+                pct   = chg / prev * 100
+            elif len(hist) == 1:
+                close = hist["Close"].iloc[-1]
+                chg, pct = 0.0, 0.0
+                prev = close
+            else:
+                close = prev = chg = pct = None
+
+            results[name] = {
+                "ticker": ticker,
+                "close":  close,
+                "chg":    chg,
+                "pct":    pct,
+            }
+        except Exception as e:
+            results[name] = {"ticker": ticker, "close": None, "error": str(e)}
+    return results
+
+def arrow_color(pct):
+    if pct is None:
+        return "gray", "–"
+    if pct > 0:
+        return "#e63946", f"▲ {pct:.2f}%"
+    elif pct < 0:
+        return "#0077b6", f"▼ {abs(pct):.2f}%"
+    else:
+        return "gray", f"► {pct:.2f}%"
+
+def render_market_indices(data):
+    cols = st.columns(len(MARKET_INDICES))
+    for col, name in zip(cols, MARKET_INDICES.keys()):
+        d = data.get(name, {})
+        close = d.get("close")
+        pct   = d.get("pct")
+        color, badge = arrow_color(pct)
+        with col:
+            st.metric(
+                label=name,
+                value=f"{close:,.2f}" if close else "N/A",
+                delta=badge if pct is not None else "N/A",
+            )
+
+def render_watchlist(data):
+    cols = st.columns(len(WATCHLIST))
+    for col, name in zip(cols, WATCHLIST.keys()):
+        d = data.get(name, {})
+        close = d.get("close")
+        pct   = d.get("pct")
+        color, badge = arrow_color(pct)
+        with col:
+            label_short = name.split(" (")[0]   # 괄호 앞 이름만
+            st.metric(
+                label=label_short,
+                value=f"{close:,.2f}" if close else "N/A",
+                delta=badge if pct is not None else "N/A",
+            )
+
+
+# ─────────────────────────────────────────────
+# RSS 소스 정의
+# ─────────────────────────────────────────────
+URLS = {
+    # NYT
+    "nyt_top": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
+    "nyt_op":  "https://rss.nytimes.com/services/xml/rss/nyt/Opinion.xml",
+
+    # WSJ – feeds.content.dowjones.io (구 feeds.a.dj.com 대체)
+    "wsj_top": "https://feeds.content.dowjones.io/public/rss/RSSWorldNews",
+    "wsj_op":  "https://feeds.content.dowjones.io/public/rss/RSSOpinion",
+
+    # Korea Times (영자신문)
+    "kt_top":  "https://feed.koreatimes.co.kr/k/allnews.xml",
+}
+
+# ─────────────────────────────────────────────
+# 한국 뉴스 폴백 체인
+#   우선순위: 네이버 파트너 언론사 RSS
+#             → 다음 미디어 RSS (구주소 일부 생존)
+#             → 구글 뉴스 RSS (최후 보루)
+# ─────────────────────────────────────────────
+
+# 종합 뉴스 후보군
+KR_TOP_CANDIDATES = [
+    # ── 네이버 파트너 언론사 직접 RSS ──
+    ("네이버/연합뉴스",   "https://www.yna.co.kr/RSS/headline.xml",              False),
+    ("네이버/MBC",        "https://imnews.imbc.com/rss/news/news_00.xml",         False),
+    ("네이버/KBS",        "https://news.kbs.co.kr/rss/rss.do?source=politics",    False),
+    ("네이버/동아일보",   "https://rss.donga.com/total.xml",                       False),
+    ("네이버/경향신문",   "https://www.khan.co.kr/rss/rssdata/total_news.xml",     False),
+    ("네이버/한겨레",     "https://www.hani.co.kr/rss/",                           False),
+    # ── 다음 미디어 RSS ──
+    ("다음/종합",         "https://media.daum.net/rss/today/primary/all/rss2.xml", False),
+    # ── 구글 뉴스 ──
+    ("구글/종합",         "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",   False),
+]
+
+# 경제 뉴스 후보군
+KR_ECO_CANDIDATES = [
+    # ── 네이버 파트너 언론사 직접 RSS ──
+    ("네이버/매일경제",   "https://www.mk.co.kr/rss/40300001/",                     False),
+    ("네이버/한국경제",   "https://www.hankyung.com/feed/all-news",                  False),
+    ("네이버/서울경제",   "https://www.sedaily.com/RssService/RSS",                  False),
+    # ── 다음 미디어 RSS ──
+    ("다음/경제",         "https://media.daum.net/rss/part/primary/economic/rss2.xml", False),
+    # ── 구글 뉴스 ──
+    ("구글/경제",         "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ko&gl=KR&ceid=KR:ko", False),
+]
+
+
+def get_rss_with_fallback(candidates: list, limit: int = 10) -> tuple[list, str]:
+    """
+    후보 RSS URL 목록을 순서대로 시도하여 기사가 있으면 반환.
+    Returns (news_list, source_label)
+    """
+    for label, url, do_clean in candidates:
+        result = get_rss_news(url, limit, do_clean)
+        if result:
+            return result, label
+    return [], "없음"
+
+
+# ─────────────────────────────────────────────
+# 뉴스 일괄 수집 (캐시 1시간)
+# ─────────────────────────────────────────────
+@st.cache_data(ttl=3600)
+def fetch_all_news():
+    nyt_news    = get_rss_news(URLS["nyt_top"],    10, True)
+    nyt_opinion = get_rss_news(URLS["nyt_op"],      5, True)
+    wsj_news    = get_rss_news(URLS["wsj_top"],    10, True)
+    wsj_opinion = get_rss_news(URLS["wsj_op"],      5, True)
+    kt_news     = get_rss_news(URLS["kt_top"],     10, False)
+
+    kr_top, kr_top_src = get_rss_with_fallback(KR_TOP_CANDIDATES, 10)
+    kr_eco, kr_eco_src = get_rss_with_fallback(KR_ECO_CANDIDATES, 10)
+
+    return nyt_news, nyt_opinion, wsj_news, wsj_opinion, kt_news, kr_top, kr_top_src, kr_eco, kr_eco_src
+
+
+# ─────────────────────────────────────────────
+# Streamlit 페이지 구성
+# ─────────────────────────────────────────────
 st.set_page_config(page_title="데일리 뉴스 브리핑", page_icon="📰", layout="wide")
 
+# ── 헤더 ──────────────────────────────────────
 st.title("📰 Daily News Dashboard")
+kst = pytz.timezone("Asia/Seoul")
+now_kst = datetime.now(kst).strftime("%Y년 %m월 %d일 %H:%M KST")
+st.caption(f"마지막 갱신: {now_kst}")
 
 if st.button("🔄 최신 뉴스 다시 불러오기"):
     st.cache_data.clear()
+    st.rerun()
 
-URLS = {
-    "nyt_top": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
-    "nyt_op": "https://rss.nytimes.com/services/xml/rss/nyt/Opinion.xml",
-    "wsj_top": "https://feeds.a.dj.com/rss/RSSWorldNews.xml",
-    "wsj_op": "https://feeds.a.dj.com/rss/RSSOpinion.xml",
-    "kr_top": "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",
-    "kr_eco": "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ko&gl=KR&ceid=KR:ko"
-}
+st.divider()
 
-@st.cache_data(ttl=3600)
-def fetch_all_news():
-    nyt_news = get_rss_news(URLS["nyt_top"], 10, True)
-    nyt_opinion = get_rss_news(URLS["nyt_op"], 5, True)
-    
-    wsj_news = get_rss_news(URLS["wsj_top"], 10, True)
-    wsj_opinion = get_rss_news(URLS["wsj_op"], 5, True)
-    
-    kr_news = get_rss_news(URLS["kr_top"], 10, False)
-    kr_economy = get_rss_news(URLS["kr_eco"], 10, False)
-    
-    return nyt_news, nyt_opinion, wsj_news, wsj_opinion, kr_news, kr_economy
+# ── 날씨 ──────────────────────────────────────
+st.subheader("🌤 오늘의 날씨 — 경기도 수원")
+render_weather()
+st.divider()
 
-with st.spinner("최신 뉴스와 오피니언을 수집하고 있습니다..."):
-    nyt_n, nyt_o, wsj_n, wsj_o, kr_n, kr_e = fetch_all_news()
+# ── 주식 시장 ─────────────────────────────────
+st.subheader("📊 글로벌 주요 지수")
+with st.spinner("시장 데이터를 불러오는 중..."):
+    market_data = fetch_market_data()
 
-# 3단 분할
-col1, col2, col3 = st.columns(3)
+render_market_indices(market_data)
+
+st.subheader("🔍 관심 종목")
+render_watchlist(market_data)
+st.caption("※ 데이터 지연이 있을 수 있습니다. 투자 판단의 참고용으로만 활용하세요.")
+st.divider()
+
+# ── 뉴스 수집 ─────────────────────────────────
+with st.spinner("최신 뉴스를 수집하고 있습니다..."):
+    nyt_n, nyt_o, wsj_n, wsj_o, kt_n, kr_top, kr_top_src, kr_eco, kr_eco_src = fetch_all_news()
+
+# ── 5단 레이아웃 ──────────────────────────────
+col1, col2, col3, col4, col5 = st.columns(5)
 
 with col1:
     st.header("🗽 New York Times")
     st.subheader("Top Stories")
     render_news(nyt_n)
-    
     st.divider()
-    
     st.subheader("Opinion")
     render_news(nyt_o)
 
@@ -97,18 +336,27 @@ with col2:
     st.header("📈 Wall Street Journal")
     st.subheader("Top Stories")
     render_news(wsj_n)
-    
     st.divider()
-    
     st.subheader("Opinion")
     render_news(wsj_o)
 
 with col3:
-    st.header("🇰🇷 국내 주요 뉴스")
-    st.subheader("종합 뉴스")
-    render_news(kr_n)
-    
-    st.divider()
-    
-    st.subheader("경제 뉴스")
-    render_news(kr_e)
+    st.header("🇰🇷 Korea Times")
+    st.subheader("All News (Top 10)")
+    render_news(kt_n)
+
+with col4:
+    st.header("📡 국내 종합 뉴스")
+    st.caption(f"출처: {kr_top_src}")
+    if kr_top:
+        render_news(kr_top)
+    else:
+        st.warning("뉴스를 불러올 수 없습니다.")
+
+with col5:
+    st.header("💼 경제 뉴스")
+    st.caption(f"출처: {kr_eco_src}")
+    if kr_eco:
+        render_news(kr_eco)
+    else:
+        st.warning("뉴스를 불러올 수 없습니다.")
