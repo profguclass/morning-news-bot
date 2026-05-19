@@ -246,10 +246,11 @@ def render_bus_info():
             f"<span style='color:#aaa; font-size:0.85em'>({route_filter} 번)</span>",
             unsafe_allow_html=True,
         )
-        # GBIS 모바일 정류소 도착정보 페이지 (mobileNo로 직접 접근)
+        # GBIS 모바일 정류소 도착정보 페이지
+        # URL 패턴: StationArrivalViaList.do?districtCd=2&mobileNo=XXXXX
         url = (
-            f"https://m.gbis.go.kr/search/StationArrivalTvList.do"
-            f"?mobileNo={mobile_no}&districtCd=2"
+            f"https://m.gbis.go.kr/search/StationArrivalViaList.do"
+            f"?districtCd=2&mobileNo={mobile_no}&osInfoType=M"
         )
         components.iframe(url, height=340, scrolling=True)
         st.caption(f"📌 관심 노선: {route_filter} | 출처: 경기버스정보(gbis.go.kr)")
