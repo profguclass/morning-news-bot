@@ -464,15 +464,16 @@ KR_PAPERS = {
     ],
     # ── 방송사
     "JTBC":      [
-        "https://fs.jtbc.co.kr/RSS/newsflash.xml",
-        "https://fs.jtbc.co.kr/RSS/politics.xml",
+        "https://news.jtbc.co.kr/rss/news.xml",             # 최신 공식 RSS
+        "https://fs.jtbc.co.kr/RSS/newsflash.xml",          # 구주소 폴백
     ],
     "MBC":       [
-        "https://imnews.imbc.com/rss/news/news_00.xml",
+        "https://imnews.imbc.com/rss/news/news_00.xml",     # 전체뉴스
+        "https://imnews.imbc.com/rss/news/news_01.xml",     # 정치 폴백
     ],
     "KBS":       [
-        "https://news.kbs.co.kr/rss/rss.do?source=politics",
-        "https://news.kbs.co.kr/rss/rss.do?source=society",
+        "https://news.kbs.co.kr/rss/rss.do?source=society", # 사회
+        "https://news.kbs.co.kr/rss/rss.do?source=politics",# 정치 폴백
     ],
 }
 
@@ -546,23 +547,46 @@ EN_PAPERS = {
 #   1순위: korea.kr 공식 RSS (*.xml)
 #   2순위: 구글 뉴스 키워드 검색 RSS (korea.kr 차단 시 자동 폴백)
 # ─────────────────────────────────────────────
-# korea.kr이 Streamlit Cloud에서 차단됨 → 구글 뉴스 검색 RSS로 대체
-# 검색 쿼리로 전일·당일 정부 발표 뉴스를 수집
+# 정부 보도자료: korea.kr 공식 RSS 1순위, 실패 시 구글 뉴스 폴백
+# 보도자료+부처브리핑 통합, 대통령실+국무회의 통합
 GOV_TABS = {
-    "📋 보도자료":         "https://news.google.com/rss/search?q=정부+보도자료+when:2d&hl=ko&gl=KR&ceid=KR:ko",
-    "🏢 부처브리핑":       "https://news.google.com/rss/search?q=부처+브리핑+정책발표+when:2d&hl=ko&gl=KR&ceid=KR:ko",
-    "🏛️ 대통령실":        "https://news.google.com/rss/search?q=대통령실+when:2d&hl=ko&gl=KR&ceid=KR:ko",
-    "📜 국무회의":         "https://news.google.com/rss/search?q=국무회의+when:2d&hl=ko&gl=KR&ceid=KR:ko",
-    "✅ 사실은이렇습니다":  "https://news.google.com/rss/search?q=사실은이렇습니다+정책브리핑+when:2d&hl=ko&gl=KR&ceid=KR:ko",
+    "📋 보도자료·브리핑": {
+        "primaries": [
+            "https://www.korea.kr/rss/pressrelease.xml",
+            "https://www.korea.kr/rss/ebriefing.xml",
+        ],
+        "fallback": "https://news.google.com/rss/search?q=정부+보도자료+브리핑+when:2d&hl=ko&gl=KR&ceid=KR:ko",
+    },
+    "🏛️ 대통령실·국무회의": {
+        "primaries": [
+            "https://www.korea.kr/rss/president.xml",
+            "https://www.korea.kr/rss/cabinet.xml",
+        ],
+        "fallback": "https://news.google.com/rss/search?q=대통령실+국무회의+when:2d&hl=ko&gl=KR&ceid=KR:ko",
+    },
+    "✅ 사실은이렇습니다": {
+        "primaries": [
+            "https://www.korea.kr/rss/fact.xml",
+        ],
+        "fallback": "https://news.google.com/rss/search?q=사실은이렇습니다+정책브리핑+when:2d&hl=ko&gl=KR&ceid=KR:ko",
+    },
 }
 
 
 def fetch_gov_news(limit: int = 15) -> dict:
-    """정부 탭별로 각각 수집합니다. (구글 뉴스 when:2d로 전일·당일 자동 필터)"""
-    return {
-        name: get_rss_news(url, limit, do_clean_url=False, silent=True)
-        for name, url in GOV_TABS.items()
-    }
+    """
+    korea.kr 공식 RSS 우선 시도 (여러 소스 합산), 실패 시 구글 뉴스 폴백.
+    """
+    results = {}
+    for name, cfg in GOV_TABS.items():
+        combined = []
+        for url in cfg["primaries"]:
+            articles = get_rss_news(url, limit, do_clean_url=False, silent=True)
+            combined.extend(articles)
+        if not combined:
+            combined = get_rss_news(cfg["fallback"], limit, do_clean_url=False, silent=True)
+        results[name] = combined
+    return results
 
 
 @st.cache_data(ttl=3600)
@@ -626,7 +650,7 @@ with st.spinner("최신 뉴스를 수집하고 있습니다..."):
 
 # ── 정부 소식: 탭 형식 ───────────────────────
 st.header("🏛️ 오늘의 정부 소식")
-st.caption("출처: 구글 뉴스 (전일·당일 기준)")
+st.caption("출처: 대한민국 정책브리핑 (korea.kr) | 접근 불가 시 구글 뉴스 자동 대체")
 gov_tabs = st.tabs(list(GOV_TABS.keys()))
 for tab, tab_name in zip(gov_tabs, GOV_TABS.keys()):
     with tab:
