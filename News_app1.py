@@ -546,53 +546,23 @@ EN_PAPERS = {
 #   1순위: korea.kr 공식 RSS (*.xml)
 #   2순위: 구글 뉴스 키워드 검색 RSS (korea.kr 차단 시 자동 폴백)
 # ─────────────────────────────────────────────
+# korea.kr이 Streamlit Cloud에서 차단됨 → 구글 뉴스 검색 RSS로 대체
+# 검색 쿼리로 전일·당일 정부 발표 뉴스를 수집
 GOV_TABS = {
-    "📋 보도자료":        "https://www.korea.kr/rss/pressrelease.xml",
-    "🏢 부처브리핑":      "https://www.korea.kr/rss/ebriefing.xml",
-    "🏛️ 대통령실":       "https://www.korea.kr/rss/president.xml",
-    "📜 국무회의":        "https://www.korea.kr/rss/cabinet.xml",
-    "✅ 사실은이렇습니다": "https://www.korea.kr/rss/fact.xml",
+    "📋 보도자료":         "https://news.google.com/rss/search?q=정부+보도자료+when:2d&hl=ko&gl=KR&ceid=KR:ko",
+    "🏢 부처브리핑":       "https://news.google.com/rss/search?q=부처+브리핑+정책발표+when:2d&hl=ko&gl=KR&ceid=KR:ko",
+    "🏛️ 대통령실":        "https://news.google.com/rss/search?q=대통령실+when:2d&hl=ko&gl=KR&ceid=KR:ko",
+    "📜 국무회의":         "https://news.google.com/rss/search?q=국무회의+when:2d&hl=ko&gl=KR&ceid=KR:ko",
+    "✅ 사실은이렇습니다":  "https://news.google.com/rss/search?q=사실은이렇습니다+정책브리핑+when:2d&hl=ko&gl=KR&ceid=KR:ko",
 }
 
 
-def _filter_recent_gov(articles: list, days: int = 2) -> list:
-    """
-    전일·당일(days=2) 기준으로 기사를 필터링합니다.
-    pubDate 파싱 실패 시 전체 반환(안전 폴백).
-    """
-    from email.utils import parsedate_to_datetime
-    kst = ZoneInfo("Asia/Seoul")
-    now = datetime.now(kst)
-    cutoff = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    # days=2 → 전일 00:00 이후
-    from datetime import timedelta
-    cutoff = cutoff - timedelta(days=days - 1)
-
-    filtered = []
-    for a in articles:
-        pub = a.get("pubDate", "")
-        try:
-            dt = parsedate_to_datetime(pub)
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=ZoneInfo("UTC"))
-            dt_kst = dt.astimezone(kst)
-            if dt_kst >= cutoff:
-                filtered.append(a)
-        except Exception:
-            filtered.append(a)   # 날짜 파싱 실패 시 포함
-    return filtered
-
-
-def fetch_gov_news(limit: int = 30) -> dict:
-    """
-    정부 탭별로 수집 후 전일·당일 기사만 필터링합니다.
-    충분히 가져오기 위해 limit=30으로 설정 후 필터링.
-    """
-    results = {}
-    for name, url in GOV_TABS.items():
-        articles = get_rss_news(url, limit, do_clean_url=False, silent=True)
-        results[name] = _filter_recent_gov(articles, days=2)
-    return results
+def fetch_gov_news(limit: int = 15) -> dict:
+    """정부 탭별로 각각 수집합니다. (구글 뉴스 when:2d로 전일·당일 자동 필터)"""
+    return {
+        name: get_rss_news(url, limit, do_clean_url=False, silent=True)
+        for name, url in GOV_TABS.items()
+    }
 
 
 @st.cache_data(ttl=3600)
@@ -654,6 +624,20 @@ st.divider()
 with st.spinner("최신 뉴스를 수집하고 있습니다..."):
     en_papers, kr_papers, kr_eco, kr_eco_src, gov_tabs_data = fetch_all_news()
 
+# ── 정부 소식: 탭 형식 ───────────────────────
+st.header("🏛️ 오늘의 정부 소식")
+st.caption("출처: 구글 뉴스 (전일·당일 기준)")
+gov_tabs = st.tabs(list(GOV_TABS.keys()))
+for tab, tab_name in zip(gov_tabs, GOV_TABS.keys()):
+    with tab:
+        news = gov_tabs_data.get(tab_name, [])
+        if news:
+            render_news(news)
+        else:
+            st.info("해당 기간 내 관련 기사가 없습니다.")
+
+st.divider()
+
 # ── 영자신문: 탭 형식 ─────────────────────────
 st.header("🌐 English News")
 en_tabs = st.tabs(list(EN_PAPERS.keys()))
@@ -673,17 +657,3 @@ for tab, (paper_name, _) in zip(kr_tabs, KR_PAPERS.items()):
             render_news(kr_eco, show_source=True)
         else:
             render_news(kr_papers.get(paper_name, []))
-
-st.divider()
-
-# ── 정부 소식: 탭 형식 ───────────────────────
-st.header("🏛️ 오늘의 정부 소식")
-st.caption("출처: 대한민국 정책브리핑 (korea.kr)")
-gov_tabs = st.tabs(list(GOV_TABS.keys()))
-for tab, tab_name in zip(gov_tabs, GOV_TABS.keys()):
-    with tab:
-        news = gov_tabs_data.get(tab_name, [])
-        if news:
-            render_news(news)
-        else:
-            st.info("자료를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.")
