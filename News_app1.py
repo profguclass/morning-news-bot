@@ -57,7 +57,10 @@ def get_rss_news(url, limit=10, do_clean_url=False, silent=False):
             if item.description:
                 desc_soup = BeautifulSoup(item.description.text, "html.parser")
                 desc = desc_soup.get_text(separator=" ", strip=True)[:180]
-            news_list.append({"title": title, "link": link, "desc": desc})
+            pub_date = ""
+            if item.pubDate:
+                pub_date = item.pubDate.text.strip()
+            news_list.append({"title": title, "link": link, "desc": desc, "pubDate": pub_date})
     except Exception as e:
         if not silent:
             st.error(f"뉴스 수집 오류 ({url}): {e}")
@@ -441,22 +444,35 @@ KR_PAPERS = {
         "https://news.google.com/rss/search?q=사건+사고+when:3h&hl=ko&gl=KR&ceid=KR:ko",
         "https://news.google.com/rss/headlines/section/topic/NATION?hl=ko&gl=KR&ceid=KR:ko",
     ],
-    "조선일보":     [
+    # ── 주요뉴스 (속보 아닌 편집 기사 위주)
+    "조선일보":  [
+        "https://www.chosun.com/arc/outboundfeeds/rss/category/national/?outputType=xml",
         "https://www.chosun.com/arc/outboundfeeds/rss/?outputType=xml",
-        "https://www.chosun.com/rss/",
     ],
-    "동아일보":     [
+    "동아일보":  [
+        "https://rss.donga.com/politics.xml",
         "https://rss.donga.com/total.xml",
-        "https://www.donga.com/news/rss/",
     ],
-    "한겨레":       [
+    "한겨레":    [
         "https://www.hani.co.kr/rss/politics/",
         "https://www.hani.co.kr/rss/society/",
         "https://www.hani.co.kr/rss/",
     ],
-    "경향신문":     [
+    "경향신문":  [
         "https://www.khan.co.kr/rss/rssdata/total_news.xml",
         "https://khan.co.kr/rss/rssdata/kh_news.xml",
+    ],
+    # ── 방송사
+    "JTBC":      [
+        "https://fs.jtbc.co.kr/RSS/newsflash.xml",
+        "https://fs.jtbc.co.kr/RSS/politics.xml",
+    ],
+    "MBC":       [
+        "https://imnews.imbc.com/rss/news/news_00.xml",
+    ],
+    "KBS":       [
+        "https://news.kbs.co.kr/rss/rss.do?source=politics",
+        "https://news.kbs.co.kr/rss/rss.do?source=society",
     ],
 }
 
@@ -539,12 +555,44 @@ GOV_TABS = {
 }
 
 
-def fetch_gov_news(limit: int = 15) -> dict:
-    """정부 탭별로 각각 수집합니다."""
-    return {
-        name: get_rss_news(url, limit, do_clean_url=False, silent=True)
-        for name, url in GOV_TABS.items()
-    }
+def _filter_recent_gov(articles: list, days: int = 2) -> list:
+    """
+    전일·당일(days=2) 기준으로 기사를 필터링합니다.
+    pubDate 파싱 실패 시 전체 반환(안전 폴백).
+    """
+    from email.utils import parsedate_to_datetime
+    kst = ZoneInfo("Asia/Seoul")
+    now = datetime.now(kst)
+    cutoff = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    # days=2 → 전일 00:00 이후
+    from datetime import timedelta
+    cutoff = cutoff - timedelta(days=days - 1)
+
+    filtered = []
+    for a in articles:
+        pub = a.get("pubDate", "")
+        try:
+            dt = parsedate_to_datetime(pub)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+            dt_kst = dt.astimezone(kst)
+            if dt_kst >= cutoff:
+                filtered.append(a)
+        except Exception:
+            filtered.append(a)   # 날짜 파싱 실패 시 포함
+    return filtered
+
+
+def fetch_gov_news(limit: int = 30) -> dict:
+    """
+    정부 탭별로 수집 후 전일·당일 기사만 필터링합니다.
+    충분히 가져오기 위해 limit=30으로 설정 후 필터링.
+    """
+    results = {}
+    for name, url in GOV_TABS.items():
+        articles = get_rss_news(url, limit, do_clean_url=False, silent=True)
+        results[name] = _filter_recent_gov(articles, days=2)
+    return results
 
 
 @st.cache_data(ttl=3600)
@@ -616,7 +664,7 @@ for tab, paper_name in zip(en_tabs, EN_PAPERS.keys()):
 st.divider()
 
 # ── 국내 뉴스: 신문사별 탭 (경제뉴스 포함) ──
-st.header("📰 국내 주요 신문")
+st.header("📰 국내 주요 뉴스")
 kr_tabs = st.tabs(list(KR_PAPERS.keys()))
 for tab, (paper_name, _) in zip(kr_tabs, KR_PAPERS.items()):
     with tab:
