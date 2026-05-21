@@ -555,6 +555,10 @@ GOV_TABS = {
         "primary":  "https://www.korea.kr/rss/policy.xml",
         "fallback": "https://www.korea.kr/rss/policy.xml",
     },
+        "📋정책뉴스": {
+        "primary":  "https://www.korea.kr/rss/policy.xml",
+        "fallback": "https://www.korea.kr/rss/policy.xml",
+    },
     "🏢부처브리핑": {
         "primary":  "https://www.korea.kr/rss/ebriefing.xml",
         "fallback": "https://www.korea.kr/rss/ebriefing.xml",
