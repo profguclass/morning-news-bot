@@ -462,18 +462,19 @@ KR_PAPERS = {
         "https://www.khan.co.kr/rss/rssdata/total_news.xml",
         "https://khan.co.kr/rss/rssdata/kh_news.xml",
     ],
-    # ── 방송사
-    "JTBC":      [
-        "https://news.jtbc.co.kr/rss/news.xml",             # 최신 공식 RSS
-        "https://fs.jtbc.co.kr/RSS/newsflash.xml",          # 구주소 폴백
+    # ── 방송사 (SBS 공식 RSS, 나머지는 구글뉴스 필터)
+    "SBS":   [
+        "https://news.sbs.co.kr/news/headlineRssFeed.do?plink=RSSREADER",  # SBS 헤드라인 (공식)
+        "https://news.sbs.co.kr/news/newsflashRssFeed.do?plink=RSSREADER", # SBS 속보 (공식)
     ],
-    "MBC":       [
-        "https://imnews.imbc.com/rss/news/news_00.xml",     # 전체뉴스
-        "https://imnews.imbc.com/rss/news/news_01.xml",     # 정치 폴백
+    "JTBC":  [
+        "https://news.google.com/rss/search?q=JTBC+뉴스+when:1d&hl=ko&gl=KR&ceid=KR:ko",
     ],
-    "KBS":       [
-        "https://news.kbs.co.kr/rss/rss.do?source=society", # 사회
-        "https://news.kbs.co.kr/rss/rss.do?source=politics",# 정치 폴백
+    "MBC":   [
+        "https://news.google.com/rss/search?q=MBC+뉴스+when:1d&hl=ko&gl=KR&ceid=KR:ko",
+    ],
+    "KBS":   [
+        "https://news.google.com/rss/search?q=KBS+뉴스+when:1d&hl=ko&gl=KR&ceid=KR:ko",
     ],
 }
 
@@ -547,45 +548,27 @@ EN_PAPERS = {
 #   1순위: korea.kr 공식 RSS (*.xml)
 #   2순위: 구글 뉴스 키워드 검색 RSS (korea.kr 차단 시 자동 폴백)
 # ─────────────────────────────────────────────
-# 정부 보도자료: korea.kr 공식 RSS 1순위, 실패 시 구글 뉴스 폴백
-# 보도자료+부처브리핑 통합, 대통령실+국무회의 통합
+# 정부 소식: korea.kr 공식 RSS 1순위, 실패 시 구글 뉴스 폴백
 GOV_TABS = {
-    "📋 보도자료·브리핑": {
-        "primaries": [
-            "https://www.korea.kr/rss/pressrelease.xml",
-            "https://www.korea.kr/rss/ebriefing.xml",
-        ],
-        "fallback": "https://news.google.com/rss/search?q=정부+보도자료+브리핑+when:2d&hl=ko&gl=KR&ceid=KR:ko",
-    },
-    "🏛️ 대통령실·국무회의": {
-        "primaries": [
-            "https://www.korea.kr/rss/president.xml",
-            "https://www.korea.kr/rss/cabinet.xml",
-        ],
-        "fallback": "https://news.google.com/rss/search?q=대통령실+국무회의+when:2d&hl=ko&gl=KR&ceid=KR:ko",
+    "🔥 실시간 인기뉴스": {
+        "primary":  "https://www.korea.kr/rss/popularNews.xml",
+        "fallback": "https://news.google.com/rss/search?q=정부+정책+when:2d&hl=ko&gl=KR&ceid=KR:ko",
     },
     "✅ 사실은이렇습니다": {
-        "primaries": [
-            "https://www.korea.kr/rss/fact.xml",
-        ],
+        "primary":  "https://www.korea.kr/rss/fact.xml",
         "fallback": "https://news.google.com/rss/search?q=사실은이렇습니다+정책브리핑+when:2d&hl=ko&gl=KR&ceid=KR:ko",
     },
 }
 
 
 def fetch_gov_news(limit: int = 15) -> dict:
-    """
-    korea.kr 공식 RSS 우선 시도 (여러 소스 합산), 실패 시 구글 뉴스 폴백.
-    """
+    """korea.kr 공식 RSS 우선, 실패 시 구글 뉴스 폴백."""
     results = {}
     for name, cfg in GOV_TABS.items():
-        combined = []
-        for url in cfg["primaries"]:
-            articles = get_rss_news(url, limit, do_clean_url=False, silent=True)
-            combined.extend(articles)
-        if not combined:
-            combined = get_rss_news(cfg["fallback"], limit, do_clean_url=False, silent=True)
-        results[name] = combined
+        articles = get_rss_news(cfg["primary"], limit, do_clean_url=False, silent=True)
+        if not articles:
+            articles = get_rss_news(cfg["fallback"], limit, do_clean_url=False, silent=True)
+        results[name] = articles
     return results
 
 
