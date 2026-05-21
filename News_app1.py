@@ -531,8 +531,8 @@ def fetch_eco_news(limit_per_source: int = 5) -> tuple:
 EN_PAPERS = {
     "AP":              {"url": "https://rsshub.app/apnews/topics/apf-topnews",                "clean": False, "limit": 10,
                         "fallback": "https://feeds.bbci.co.uk/news/world/rss.xml"},
-    "FA":             {"url": "foreignaffairs.com/rss.xml",                                   "clean": False, "limit": 10,
-                        "fallback": "https://feeds.bbci.co.uk/news/world/rss.xml"},
+    "FA":             {"url": "https://foreignaffairs.com/rss.xml",                                   "clean": False, "limit": 10,
+                        "fallback": "https://foreignaffairs.com/rss.xml"},
     "NYT Top Stories": {"url": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",  "clean": True,  "limit": 10},
     "NYT Opinion":     {"url": "https://rss.nytimes.com/services/xml/rss/nyt/Opinion.xml",   "clean": True,  "limit": 8},
     "WSJ World":       {"url": "https://feeds.content.dowjones.io/public/rss/RSSWorldNews",  "clean": True,  "limit": 10},
