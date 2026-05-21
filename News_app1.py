@@ -529,11 +529,11 @@ def fetch_eco_news(limit_per_source: int = 5) -> tuple:
 # AP: rsshub.app 공개 미러 사용 (공식 RSS 미제공)
 # AFP: 공식 RSS 없음 → 구글 뉴스 AFP 소스 필터 사용
 EN_PAPERS = {
-    "AP":              {"url": "https://rsshub.app/apnews/topics/apf-topnews",                "clean": False, "limit": 10,
-                        "fallback": "https://feeds.bbci.co.uk/news/world/rss.xml"},
-    "AFP":             {"url": "https://news.google.com/rss/search?q=AFP+when:1d&hl=en-US&gl=US&ceid=US:en",
+    "KBS World":              {"url": "https://world.kbs.co.kr/service/index.htm?lang=e",                "clean": False, "limit": 10,
+                        "fallback": "https://world.kbs.co.kr/service/index.htm?lang=e"},
+    "FA":             {"url": "https://foreignaffairs.com/rss.xml",
                                                                                               "clean": False, "limit": 10,
-                        "fallback": "https://feeds.bbci.co.uk/news/world/rss.xml"},
+                        "fallback": "foreignaffairs.com/rss.xml"},
     "NYT Top Stories": {"url": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",  "clean": True,  "limit": 10},
     "NYT Opinion":     {"url": "https://rss.nytimes.com/services/xml/rss/nyt/Opinion.xml",   "clean": True,  "limit": 8},
     "WSJ World":       {"url": "https://feeds.content.dowjones.io/public/rss/RSSWorldNews",  "clean": True,  "limit": 10},
@@ -551,21 +551,25 @@ EN_PAPERS = {
 # 정부 소식: korea.kr 각 RSS를 탭별로 1:1 표시
 # 실패 시 구글 뉴스 폴백
 GOV_TABS = {
-    "📋 보도자료": {
+    "📋보도자료": {
         "primary":  "https://www.korea.kr/rss/pressrelease.xml",
-        "fallback": "https://news.google.com/rss/search?q=정부+보도자료+when:2d&hl=ko&gl=KR&ceid=KR:ko",
+        "fallback": "https://www.korea.kr/rss/pressrelease.xml",
     },
-    "🏢 부처브리핑": {
+    "🏢부처브리핑": {
         "primary":  "https://www.korea.kr/rss/ebriefing.xml",
-        "fallback": "https://news.google.com/rss/search?q=부처+브리핑+when:2d&hl=ko&gl=KR&ceid=KR:ko",
+        "fallback": "https://www.korea.kr/rss/ebriefing.xml",
     },
-    "📰 정책뉴스": {
-        "primary":  "https://www.korea.kr/rss/policyNews.xml",
-        "fallback": "https://news.google.com/rss/search?q=정부+정책뉴스+when:2d&hl=ko&gl=KR&ceid=KR:ko",
-    },
-    "✅ 사실은이렇습니다": {
+    "📰청와대브리핑": {
         "primary":  "https://www.korea.kr/rss/fact.xml",
-        "fallback": "https://news.google.com/rss/search?q=사실은이렇습니다+정책브리핑+when:2d&hl=ko&gl=KR&ceid=KR:ko",
+        "fallback": "https://www.korea.kr/rss/fact.xml",
+    },
+    "✅사실은이렇습니다": {
+        "primary":  "https://www.korea.kr/rss/fact.xml",
+        "fallback": "https://www.korea.kr/rss/fact.xml",
+    },
+     "📰국무회의": {
+        "primary":  "https://www.korea.kr/rss/cabinet.xml",
+        "fallback": "https://www.korea.kr/rss/cabinet.xml",
     },
 }
 
