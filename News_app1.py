@@ -531,7 +531,7 @@ def fetch_eco_news(limit_per_source: int = 5) -> tuple:
 EN_PAPERS = {
     "AP":              {"url": "https://rsshub.app/apnews/topics/apf-topnews",                "clean": False, "limit": 10,
                         "fallback": "https://feeds.bbci.co.uk/news/world/rss.xml"},
-    "AFP":             {"url": "https://news.google.com/rss/search?q=AFP+when:1d&hl=en-US&gl=US&ceid=US:en",
+    "FA":             {"url": "foreignaffairs.com/rss.xml",
                                                                                               "clean": False, "limit": 10,
                         "fallback": "https://feeds.bbci.co.uk/news/world/rss.xml"},
     "NYT Top Stories": {"url": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",  "clean": True,  "limit": 10},
@@ -549,23 +549,22 @@ EN_PAPERS = {
 #   2순위: 구글 뉴스 키워드 검색 RSS (korea.kr 차단 시 자동 폴백)
 # ─────────────────────────────────────────────
 # 정부 소식: korea.kr 각 RSS를 탭별로 1:1 표시
-# 실패 시 구글 뉴스 폴백
+
 GOV_TABS = {
     "📋 보도자료": {
         "primary":  "https://www.korea.kr/rss/pressrelease.xml",
-        "fallback": "https://news.google.com/rss/search?q=정부+보도자료+when:2d&hl=ko&gl=KR&ceid=KR:ko",
-    },
+            },
     "🏢 부처브리핑": {
         "primary":  "https://www.korea.kr/rss/ebriefing.xml",
-        "fallback": "https://news.google.com/rss/search?q=부처+브리핑+when:2d&hl=ko&gl=KR&ceid=KR:ko",
+        
     },
     "📰 정책뉴스": {
         "primary":  "https://www.korea.kr/rss/policyNews.xml",
-        "fallback": "https://news.google.com/rss/search?q=정부+정책뉴스+when:2d&hl=ko&gl=KR&ceid=KR:ko",
+        
     },
     "✅ 사실은이렇습니다": {
         "primary":  "https://www.korea.kr/rss/fact.xml",
-        "fallback": "https://news.google.com/rss/search?q=사실은이렇습니다+정책브리핑+when:2d&hl=ko&gl=KR&ceid=KR:ko",
+        
     },
 }
 
