@@ -546,10 +546,9 @@ EN_PAPERS = {
 # ─────────────────────────────────────────────
 # 정부 보도자료
 #   1순위: korea.kr 공식 RSS (*.xml)
-#   2순위: 구글 뉴스 키워드 검색 RSS (korea.kr 차단 시 자동 폴백)
 # ─────────────────────────────────────────────
 # 정부 소식: korea.kr 각 RSS를 탭별로 1:1 표시
-# 실패 시 구글 뉴스 폴백
+
 GOV_TABS = {
     "📋보도자료": {
         "primary":  "https://www.korea.kr/rss/pressrelease.xml",
@@ -576,7 +575,7 @@ GOV_TABS = {
 
 @st.cache_data(ttl=1800)   # fetch_all_news와 별도 캐시 — 🔄 버튼으로 초기화 가능
 def fetch_gov_news(limit: int = 15) -> dict:
-    """korea.kr 공식 RSS 탭별 1:1 수집, 실패 시 구글 뉴스 폴백."""
+    
     results = {}
     for name, cfg in GOV_TABS.items():
         articles = get_rss_news(cfg["primary"], limit, do_clean_url=False, silent=True)
@@ -608,7 +607,7 @@ def fetch_all_news():
 # ─────────────────────────────────────────────
 # Streamlit 페이지 구성
 # ─────────────────────────────────────────────
-st.set_page_config(page_title="데일리 뉴스 브리핑", page_icon="📰", layout="wide")
+st.set_page_config(page_title="나의 소식통", page_icon="📰", layout="wide")
 
 st.title("📰 Daily News Dashboard")
 kst     = ZoneInfo("Asia/Seoul")
@@ -635,7 +634,7 @@ with st.spinner("시장 데이터를 불러오는 중..."):
 render_indices(market_data)
 
 render_watchlist(market_data)
-st.caption("※ 국내 종목·지수: 네이버 금융 API | 해외 지수·종목: Yahoo Finance | 투자 판단 참고용")
+st.caption("※ 국내 종목·지수: 네이버 금융 API | 해외 지수·종목: Yahoo Finance")
 st.divider()
 
 # ── 뉴스 수집 ─────────────────────────────────
@@ -644,7 +643,7 @@ with st.spinner("최신 뉴스를 수집하고 있습니다..."):
 
 # ── 정부 소식: 탭 형식 (별도 캐시로 독립 수집) ──
 st.header("🏛️ 오늘의 정부 소식")
-st.caption("출처: 대한민국 정책브리핑 (korea.kr) | 접근 불가 시 구글 뉴스 자동 대체")
+st.caption("출처: 대한민국 정책브리핑 (korea.kr)")
 with st.spinner("정부 소식을 불러오는 중..."):
     gov_tabs_data = fetch_gov_news(limit=15)
 gov_tabs = st.tabs(list(GOV_TABS.keys()))
