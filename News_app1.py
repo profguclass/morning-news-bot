@@ -528,6 +528,7 @@ def fetch_eco_news(limit_per_source: int = 5) -> tuple:
 # 영자신문 탭 정의
 # AP: rsshub.app 공개 미러 사용 (공식 RSS 미제공)
 # AFP: 공식 RSS 없음 → 구글 뉴스 AFP 소스 필터 사용
+
 EN_PAPERS = {
     "KBS World":              {"url": "https://world.kbs.co.kr/service/index.htm?lang=e",                "clean": False, "limit": 10,
                         "fallback": "https://world.kbs.co.kr/service/index.htm?lang=e"},
@@ -559,8 +560,8 @@ GOV_TABS = {
         "fallback": "https://www.korea.kr/rss/ebriefing.xml",
     },
     "📰청와대브리핑": {
-        "primary":  "https://www.korea.kr/rss/fact.xml",
-        "fallback": "https://www.korea.kr/rss/fact.xml",
+        "primary":  "https://www.korea.kr/rss/president.xml",
+        "fallback": "https://www.korea.kr/rss/president.xml",
     },
     "✅사실은이렇습니다": {
         "primary":  "https://www.korea.kr/rss/fact.xml",
