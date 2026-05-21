@@ -548,11 +548,20 @@ EN_PAPERS = {
 #   1순위: korea.kr 공식 RSS (*.xml)
 #   2순위: 구글 뉴스 키워드 검색 RSS (korea.kr 차단 시 자동 폴백)
 # ─────────────────────────────────────────────
-# 정부 소식: korea.kr 공식 RSS 1순위, 실패 시 구글 뉴스 폴백
+# 정부 소식: korea.kr 각 RSS를 탭별로 1:1 표시
+# 실패 시 구글 뉴스 폴백
 GOV_TABS = {
-    "🔥 실시간 인기뉴스": {
-        "primary":  "https://www.korea.kr/rss/popularNews.xml",
-        "fallback": "https://news.google.com/rss/search?q=정부+정책+when:2d&hl=ko&gl=KR&ceid=KR:ko",
+    "📋 보도자료": {
+        "primary":  "https://www.korea.kr/rss/pressrelease.xml",
+        "fallback": "https://news.google.com/rss/search?q=정부+보도자료+when:2d&hl=ko&gl=KR&ceid=KR:ko",
+    },
+    "🏢 부처브리핑": {
+        "primary":  "https://www.korea.kr/rss/ebriefing.xml",
+        "fallback": "https://news.google.com/rss/search?q=부처+브리핑+when:2d&hl=ko&gl=KR&ceid=KR:ko",
+    },
+    "📰 정책뉴스": {
+        "primary":  "https://www.korea.kr/rss/policyNews.xml",
+        "fallback": "https://news.google.com/rss/search?q=정부+정책뉴스+when:2d&hl=ko&gl=KR&ceid=KR:ko",
     },
     "✅ 사실은이렇습니다": {
         "primary":  "https://www.korea.kr/rss/fact.xml",
@@ -562,7 +571,7 @@ GOV_TABS = {
 
 
 def fetch_gov_news(limit: int = 15) -> dict:
-    """korea.kr 공식 RSS 우선, 실패 시 구글 뉴스 폴백."""
+    """korea.kr 공식 RSS 탭별 1:1 수집, 실패 시 구글 뉴스 폴백."""
     results = {}
     for name, cfg in GOV_TABS.items():
         articles = get_rss_news(cfg["primary"], limit, do_clean_url=False, silent=True)
