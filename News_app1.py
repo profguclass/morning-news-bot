@@ -527,7 +527,7 @@ def fetch_eco_news(limit_per_source: int = 5) -> tuple:
 # ─────────────────────────────────────────────
 # 영자신문 탭 정의
 # AP: rsshub.app 공개 미러 사용 (공식 RSS 미제공)
-# AFP: 공식 RSS 없음 → 구글 뉴스 AFP 소스 필터 사용
+
 EN_PAPERS = {
     "AP":              {"url": "https://rsshub.app/apnews/topics/apf-topnews",                "clean": False, "limit": 10,
                         "fallback": "https://feeds.bbci.co.uk/news/world/rss.xml"},
@@ -546,7 +546,7 @@ EN_PAPERS = {
 # ─────────────────────────────────────────────
 # 정부 보도자료
 #   1순위: korea.kr 공식 RSS (*.xml)
-#   2순위: 구글 뉴스 키워드 검색 RSS (korea.kr 차단 시 자동 폴백)
+
 # ─────────────────────────────────────────────
 # 정부 소식: korea.kr 각 RSS를 탭별로 1:1 표시
 
