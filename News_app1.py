@@ -531,8 +531,7 @@ def fetch_eco_news(limit_per_source: int = 5) -> tuple:
 EN_PAPERS = {
     "AP":              {"url": "https://rsshub.app/apnews/topics/apf-topnews",                "clean": False, "limit": 10,
                         "fallback": "https://feeds.bbci.co.uk/news/world/rss.xml"},
-    "FA":             {"url": "foreignaffairs.com/rss.xml",
-                                                                                              "clean": False, "limit": 10,
+    "FA":             {"url": "foreignaffairs.com/rss.xml",                                   "clean": False, "limit": 10,
                         "fallback": "https://feeds.bbci.co.uk/news/world/rss.xml"},
     "NYT Top Stories": {"url": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",  "clean": True,  "limit": 10},
     "NYT Opinion":     {"url": "https://rss.nytimes.com/services/xml/rss/nyt/Opinion.xml",   "clean": True,  "limit": 8},
@@ -553,18 +552,19 @@ EN_PAPERS = {
 GOV_TABS = {
     "📋 보도자료": {
         "primary":  "https://www.korea.kr/rss/pressrelease.xml",
-            },
+        "fallback": "https://www.korea.kr/rss/pressrelease.xml",
+    },
     "🏢 부처브리핑": {
         "primary":  "https://www.korea.kr/rss/ebriefing.xml",
-        
+        "fallback": "https://www.korea.kr/rss/ebriefing.xml",
     },
     "📰 정책뉴스": {
         "primary":  "https://www.korea.kr/rss/policyNews.xml",
-        
+        "fallback": "https://www.korea.kr/rss/policyNews.xml",
     },
     "✅ 사실은이렇습니다": {
         "primary":  "https://www.korea.kr/rss/fact.xml",
-        
+        "fallback": "https://www.korea.kr/rss/fact.xml",
     },
 }
 
