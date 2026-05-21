@@ -529,8 +529,8 @@ def fetch_eco_news(limit_per_source: int = 5) -> tuple:
 # AP: rsshub.app 공개 미러 사용 (공식 RSS 미제공)
 
 EN_PAPERS = {
-    "AP":              {"url": "https://rsshub.app/apnews/topics/apf-topnews",                "clean": False, "limit": 10,
-                        "fallback": "https://feeds.bbci.co.uk/news/world/rss.xml"},
+    "KBS World":       {"url": "http://world.kbs.co.kr/rss/rss_news.htm?lang=e",                "clean": False, "limit": 10,
+                        "fallback": "http://world.kbs.co.kr/rss/rss_news.htm?lang=e"},
     "FA":             {"url": "https://foreignaffairs.com/rss.xml",                                   "clean": False, "limit": 10,
                         "fallback": "https://foreignaffairs.com/rss.xml"},
     "NYT Top Stories": {"url": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",  "clean": True,  "limit": 10},
