@@ -530,11 +530,11 @@ def fetch_eco_news(limit_per_source: int = 5) -> tuple:
 # AFP: 공식 RSS 없음 → 구글 뉴스 AFP 소스 필터 사용
 
 EN_PAPERS = {
-    "KBS World":              {"url": "https://world.kbs.co.kr/service/index.htm?lang=e",                "clean": False, "limit": 10,
-                        "fallback": "https://world.kbs.co.kr/service/index.htm?lang=e"},
+    "KBS World":              {"url": "http://world.kbs.co.kr/rss/rss_news.htm?lang=e",                "clean": False, "limit": 10,
+                        "fallback": "http://world.kbs.co.kr/rss/rss_news.htm?lang=e"},
     "FA":             {"url": "https://foreignaffairs.com/rss.xml",
                                                                                               "clean": False, "limit": 10,
-                        "fallback": "foreignaffairs.com/rss.xml"},
+                        "fallback": "https://foreignaffairs.com/rss.xml"},
     "NYT Top Stories": {"url": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",  "clean": True,  "limit": 10},
     "NYT Opinion":     {"url": "https://rss.nytimes.com/services/xml/rss/nyt/Opinion.xml",   "clean": True,  "limit": 8},
     "WSJ World":       {"url": "https://feeds.content.dowjones.io/public/rss/RSSWorldNews",  "clean": True,  "limit": 10},
@@ -566,10 +566,6 @@ GOV_TABS = {
     "✅사실은이렇습니다": {
         "primary":  "https://www.korea.kr/rss/fact.xml",
         "fallback": "https://www.korea.kr/rss/fact.xml",
-    },
-     "📰국무회의": {
-        "primary":  "https://www.korea.kr/rss/cabinet.xml",
-        "fallback": "https://www.korea.kr/rss/cabinet.xml",
     },
 }
 
