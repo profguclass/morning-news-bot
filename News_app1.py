@@ -554,13 +554,13 @@ GOV_TABS = {
         "primary":  "https://www.korea.kr/rss/pressrelease.xml",
         "fallback": "https://www.korea.kr/rss/pressrelease.xml",
     },
-    "🏢 부처브리핑": {
+    "🏢 부처B": {
         "primary":  "https://www.korea.kr/rss/ebriefing.xml",
         "fallback": "https://www.korea.kr/rss/ebriefing.xml",
     },
-    "📰 정책뉴스": {
-        "primary":  "https://www.korea.kr/rss/policyNews.xml",
-        "fallback": "https://www.korea.kr/rss/policyNews.xml",
+    "📰 청와대B": {
+        "primary":  "https://www.korea.kr/rss/president.xml",
+        "fallback": "https://www.korea.kr/rss/president.xml",
     },
     "✅ 사실은이렇습니다": {
         "primary":  "https://www.korea.kr/rss/fact.xml",
