@@ -551,9 +551,9 @@ EN_PAPERS = {
 # 정부 소식: korea.kr 각 RSS를 탭별로 1:1 표시
 
 GOV_TABS = {
-    "📋보도자료": {
-        "primary":  "https://www.korea.kr/rss/pressrelease.xml",
-        "fallback": "https://www.korea.kr/rss/pressrelease.xml",
+    "📋정책뉴스": {
+        "primary":  "https://www.korea.kr/rss/policy.xml",
+        "fallback": "https://www.korea.kr/rss/policy.xml",
     },
     "🏢부처브리핑": {
         "primary":  "https://www.korea.kr/rss/ebriefing.xml",
