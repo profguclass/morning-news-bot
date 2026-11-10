@@ -87,6 +87,10 @@ page = f"""<!doctype html>
 <html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>나의 소식통 · Daily News Dashboard</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0e1117">
 <meta name="description" content="날씨, 증시, 국내외 주요 뉴스를 매일 아침 자동으로 모아 보여 주는 대시보드">
 <meta property="og:title" content="나의 소식통 · Daily News Dashboard">
 <meta property="og:description" content="날씨, 증시, 국내외 주요 뉴스를 매일 아침 자동으로 모아 보여 줘요.">
@@ -132,10 +136,14 @@ a{{color:var(--fg)}} a:hover{{color:var(--acc)}}
 document.addEventListener('click',function(ev){{var b=ev.target.closest('.tab');if(!b)return;
 var g=b.dataset.g,i=b.dataset.i;
 document.querySelectorAll('[data-g="'+g+'"]').forEach(function(x){{x.classList.toggle('on',x.dataset.i===i)}});}});
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script></body></html>"""
 
 out = pathlib.Path("site")
 out.mkdir(exist_ok=True)
 (out / "index.html").write_text(page, encoding="utf-8")
 (out / ".nojekyll").write_text("")
+import shutil
+for f in pathlib.Path("assets").iterdir():
+    shutil.copy(f, out / f.name)
 print("built", len(page), "bytes")
