@@ -21,11 +21,10 @@ const gnTopic = (t: string) => `https://news.google.com/rss/headlines/section/to
 
 export const GROUPS: Record<string, Tab[]> = {
   gov: [
-    { name: "📋보도자료", urls: ["https://www.korea.kr/rss/pressrelease.xml"], limit: 15 },
-    { name: "📋정책뉴스", urls: ["https://www.korea.kr/rss/policy.xml"], limit: 15 },
-    { name: "🏢부처브리핑", urls: ["https://www.korea.kr/rss/ebriefing.xml"], limit: 15 },
-    { name: "📰청와대브리핑", urls: ["https://www.korea.kr/rss/president.xml"], limit: 15 },
-    { name: "✅사실은이렇습니다", urls: ["https://www.korea.kr/rss/fact.xml"], limit: 15 },
+    { name: "🏛 정치(연합뉴스)", urls: ["https://www.yna.co.kr/rss/politics.xml"], limit: 15 },
+    { name: "💰 경제(연합뉴스)", urls: ["https://www.yna.co.kr/rss/economy.xml"], limit: 15 },
+    { name: "🏛 정치(뉴시스)", urls: ["https://www.newsis.com/RSS/politics.xml"], limit: 15 },
+    { name: "📢 행정안전부 알림", urls: ["https://www.mois.go.kr/gpms/view/jsp/rss/rss.jsp?ctxCd=1001"], limit: 15 },
   ],
   en: [
     { name: "KBS World", urls: ["http://world.kbs.co.kr/rss/rss_news.htm?lang=e"], limit: 10 },
