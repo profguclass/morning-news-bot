@@ -14,9 +14,11 @@ const WD = "월화수목금토일";
 const fmt = (n, d = 2) => Number(n).toLocaleString("ko-KR", { minimumFractionDigits: d, maximumFractionDigits: d });
 const clock = (iso) => new Date(iso).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Asia/Seoul" });
 
+// GitHub Pages에서 열면 데이터는 서버 주소에서 가져온다
+const API_BASE = location.hostname.endsWith("github.io") ? "https://morning-news-bot.baze.cloud" : "";
 async function api(path, force) {
   const sep = path.includes("?") ? "&" : "?";
-  const r = await fetch(path + (force ? sep + "refresh=1" : ""));
+  const r = await fetch(API_BASE + path + (force ? sep + "refresh=1" : ""));
   if (!r.ok) throw new Error(String(r.status));
   return r.json();
 }
