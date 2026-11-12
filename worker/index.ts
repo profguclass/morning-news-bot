@@ -1,10 +1,12 @@
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { ECO_SOURCES, GROUPS } from "./config";
 import { fetchMarket } from "./market";
 import { fetchWeather } from "./weather";
 import { Article, fetchRss, firstWithItems } from "./rss";
 
 const app = new Hono();
+app.use("/api/*", cors({ origin: ["https://profguclass.github.io"], allowMethods: ["GET"] }));
 const lastGood = new Map<string, unknown>();
 
 // 짧게 캐시하고, 실패하면 직전에 성공한 값을 돌려준다.

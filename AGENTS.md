@@ -4,5 +4,5 @@
 - worker/: 데이터를 실시간 수집하는 API. 짧게 캐시하고, 실패하면 직전 값을 보여 줌. 출처 목록은 worker/config.ts.
 - 저장하는 사용자 데이터 없음. 구역 하나가 실패해도 그 구역만 오류 안내를 보임.
 - News_app1.py는 원래 Streamlit 앱이며 참고용으로 남김(수정하지 않음).
-- 결정: 정적 GitHub Pages(하루 한 번 갱신)를 버리고 BAZE 호스팅으로 옮김. 초단위 시세·로그인·알림은 하지 않음.
+- 결정: 화면은 GitHub Pages(profguclass.github.io/morning-news-bot) 주소를 유지하고, 데이터는 morning-news-bot.baze.cloud 서버에서 실시간으로 가져옴. 초단위 시세·로그인·알림은 하지 않음.
 - 알려진 점: korea.kr(정부 소식)은 일부 서버에서 막혀 비어 보일 수 있음. Pages 쪽 옛 스냅샷은 더 이상 갱신되지 않음.
