@@ -25,7 +25,6 @@ export const GROUPS: Record<string, Tab[]> = {
     { name: "✅사실은이렇습니다", urls: ["https://www.korea.kr/briefing/actuallyList.do"], limit: 15, korea: true },
     { name: "🏛 정치(연합뉴스)", urls: ["https://www.yna.co.kr/rss/politics.xml"], limit: 15 },
     { name: "💰 경제(연합뉴스)", urls: ["https://www.yna.co.kr/rss/economy.xml"], limit: 15 },
-    { name: "🏛 정치(뉴시스)", urls: ["https://www.newsis.com/RSS/politics.xml"], limit: 15 },
     { name: "📢 행정안전부 알림", urls: ["https://www.mois.go.kr/gpms/view/jsp/rss/rss.jsp?ctxCd=1001"], limit: 15 },
   ],
   en: [
