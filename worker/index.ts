@@ -53,6 +53,13 @@ app.get("/api/feed/:group/:index", (c) => {
         const items: Article[] = used.flatMap((l) => l.items.map((a) => ({ ...a, source: l.label })));
         return { items, note: used.length ? `출처: ${used.map((l) => l.label).join(" · ")}` : "" };
       }
+      if (tab.multi) {
+        const lists = await Promise.all(tab.multi.map(async ([label, url]) => ({ label, items: await fetchRss(url, tab.limit) })));
+        const used = lists.filter((l) => l.items.length);
+        const items: Article[] = [];
+        for (let i = 0; i < tab.limit; i++) for (const l of used) if (l.items[i]) items.push({ ...l.items[i], source: l.label });
+        return { items, note: used.length ? `출처: ${used.map((l) => l.label).join(" · ")}` : "" };
+      }
       if (tab.korea) return { items: await fetchKoreaList(tab.urls[0], tab.limit), note: "" };
       return { items: await firstWithItems(tab.urls, tab.limit, tab.clean), note: "" };
     },
