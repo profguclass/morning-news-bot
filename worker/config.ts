@@ -49,8 +49,6 @@ export const GROUPS: Record<string, Tab[]> = {
     { name: "💬국민이 말하는 정책", urls: ["https://www.korea.kr/news/reporterList.do"], limit: 20, korea: true },
     { name: "✍오피니언", urls: ["https://www.korea.kr/news/celebrityList.do"], limit: 20, korea: true },
     { name: "🔎키워드 뉴스", urls: ["https://www.korea.kr/news/customizedNewsList.do"], limit: 20, korea: true },
-    { name: "🏛 정치(연합뉴스)", urls: ["https://www.yna.co.kr/rss/politics.xml"], limit: 15 },
-    { name: "💰 경제(연합뉴스)", urls: ["https://www.yna.co.kr/rss/economy.xml"], limit: 15 },
     { name: "📢 행정안전부 알림", urls: ["https://www.mois.go.kr/gpms/view/jsp/rss/rss.jsp?ctxCd=1001"], limit: 15 },
   ],
   en: [
