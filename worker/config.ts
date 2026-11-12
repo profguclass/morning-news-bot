@@ -34,7 +34,7 @@ export const COMMODITIES: Record<string, [string, number]> = {
   "비트코인 (USD)": ["BTC-USD", 1],
 };
 
-export type Tab = { name: string; urls: string[]; limit: number; clean?: boolean; eco?: boolean; korea?: boolean };
+export type Tab = { name: string; urls: string[]; limit: number; clean?: boolean; eco?: boolean; korea?: boolean; multi?: [string, string][] };
 const gn = (q: string) => `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=ko&gl=KR&ceid=KR:ko`;
 const gnTopic = (t: string) => `https://news.google.com/rss/headlines/section/topic/${t}?hl=ko&gl=KR&ceid=KR:ko`;
 
@@ -58,6 +58,9 @@ export const GROUPS: Record<string, Tab[]> = {
     { name: "NYT Opinion", urls: ["https://rss.nytimes.com/services/xml/rss/nyt/Opinion.xml"], limit: 8, clean: true },
     { name: "WSJ World", urls: ["https://feeds.content.dowjones.io/public/rss/RSSWorldNews"], limit: 10, clean: true },
     { name: "WSJ Opinion", urls: ["https://feeds.content.dowjones.io/public/rss/RSSOpinion"], limit: 8, clean: true },
+    { name: "Nature", urls: ["https://www.nature.com/nature.rss"], limit: 10, clean: true },
+    { name: "Science", urls: ["https://www.science.org/rss/news_current.xml"], limit: 10, clean: true },
+    { name: "ScienceDaily", urls: ["https://www.sciencedaily.com/rss/all.xml"], limit: 10 },
     { name: "Korea Times", urls: ["https://feed.koreatimes.co.kr/k/allnews.xml"], limit: 10 },
   ],
   kr: [
@@ -65,6 +68,21 @@ export const GROUPS: Record<string, Tab[]> = {
     { name: "💼 경제속보", urls: [], limit: 5, eco: true },
     { name: "🔴 정치속보", urls: ["https://www.yna.co.kr/rss/politics.xml", gn("정치 속보 when:1h"), gn("정치 when:3h"), gnTopic("POLITICS")], limit: 8 },
     { name: "🔴 사회속보", urls: ["https://www.yna.co.kr/rss/society.xml", gn("사회 속보 when:1h"), gn("사건 사고 when:3h"), gnTopic("NATION")], limit: 8 },
+    {
+      name: "🔬 과학", urls: [], limit: 4,
+      multi: [
+        ["경향신문", "https://www.khan.co.kr/rss/rssdata/science_news.xml"],
+        ["동아일보", "https://rss.donga.com/science.xml"],
+        ["한겨레", "https://www.hani.co.kr/rss/science/"],
+      ],
+    },
+    {
+      name: "💻 IT·기술", urls: [], limit: 6,
+      multi: [
+        ["전자신문", "https://rss.etnews.com/Section901.xml"],
+        ["ZDNet Korea", "https://feeds.feedburner.com/zdkorea"],
+      ],
+    },
     { name: "조선일보", urls: ["https://www.chosun.com/arc/outboundfeeds/rss/category/national/?outputType=xml", "https://www.chosun.com/arc/outboundfeeds/rss/?outputType=xml"], limit: 8 },
     { name: "동아일보", urls: ["https://rss.donga.com/politics.xml", "https://rss.donga.com/total.xml"], limit: 8 },
     { name: "한겨레", urls: ["https://www.hani.co.kr/rss/politics/", "https://www.hani.co.kr/rss/society/", "https://www.hani.co.kr/rss/"], limit: 8 },
