@@ -83,7 +83,10 @@ async function loadMarket(force) {
         el("div", {}, el("p", { class: "cap" }, "🇰🇷 국내 지수"), qTable(m.kr, m.quotes)),
         el("div", {}, el("p", { class: "cap" }, "🌐 해외 지수"), qTable(m.global, m.quotes))),
       el("p", { class: "cap" }, "🔍 관심 종목"),
-      qTable(m.watch, m.quotes));
+      qTable(m.watch, m.quotes),
+      el("div", { class: "grid sub" },
+        el("div", {}, el("p", { class: "cap" }, "💱 환율"), qTable(m.fx, m.quotes)),
+        el("div", {}, el("p", { class: "cap" }, "🛢 원자재 · 금리 · 가상자산"), qTable(m.commodity, m.quotes))));
     $("market-time").textContent = clock(m.updatedAt) + " 기준";
     touchStamp(m.updatedAt);
   } catch {
@@ -101,6 +104,7 @@ function renderFeed(panel, data) {
   data.items.forEach((n, i) => {
     const li = el("li", {}, el("a", { href: n.link, target: "_blank", rel: "noopener noreferrer" }, n.title));
     if (n.source) li.append(el("span", { class: "src" }, n.source));
+    if (n.pubDate && /^\d{4}\.\d{2}\.\d{2}/.test(n.pubDate)) li.append(el("span", { class: "src" }, n.pubDate));
     if (n.desc) li.append(el("p", {}, n.desc));
     ol.append(li);
   });

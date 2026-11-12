@@ -15,17 +15,42 @@ export const WATCHLIST: Record<string, ["naver" | "yahoo", string]> = {
   Tesla: ["yahoo", "TSLA"],
 };
 
+// 환율·원자재·금리: 이름 → [Yahoo 티커, 곱할 값]
+export const FX: Record<string, [string, number]> = {
+  "달러/원": ["KRW=X", 1],
+  "유로/원": ["EURKRW=X", 1],
+  "엔(100엔)/원": ["JPYKRW=X", 100],
+  "위안/원": ["CNYKRW=X", 1],
+  "달러 인덱스": ["DX-Y.NYB", 1],
+};
+export const COMMODITIES: Record<string, [string, number]> = {
+  "금 (USD/oz)": ["GC=F", 1],
+  "은 (USD/oz)": ["SI=F", 1],
+  "구리 (USD/lb)": ["HG=F", 1],
+  "WTI 원유 (USD/bbl)": ["CL=F", 1],
+  "브렌트유 (USD/bbl)": ["BZ=F", 1],
+  "천연가스 (USD/MMBtu)": ["NG=F", 1],
+  "미국 10년물 금리 (%)": ["^TNX", 1],
+  "비트코인 (USD)": ["BTC-USD", 1],
+};
+
 export type Tab = { name: string; urls: string[]; limit: number; clean?: boolean; eco?: boolean; korea?: boolean };
 const gn = (q: string) => `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=ko&gl=KR&ceid=KR:ko`;
 const gnTopic = (t: string) => `https://news.google.com/rss/headlines/section/topic/${t}?hl=ko&gl=KR&ceid=KR:ko`;
 
 export const GROUPS: Record<string, Tab[]> = {
   gov: [
-    { name: "📋보도자료", urls: ["https://www.korea.kr/briefing/pressReleaseList.do"], limit: 15, korea: true },
-    { name: "✅사실은이렇습니다", urls: ["https://www.korea.kr/briefing/actuallyList.do"], limit: 15, korea: true },
+    { name: "📋보도자료", urls: ["https://www.korea.kr/briefing/pressReleaseList.do"], limit: 20, korea: true },
+    { name: "📰정책뉴스", urls: ["https://www.korea.kr/news/policyNewsList.do"], limit: 20, korea: true },
+    { name: "🎙브리핑 자료", urls: ["https://www.korea.kr/briefing/briefingHomeList.do"], limit: 20, korea: true },
+    { name: "📜연설문", urls: ["https://www.korea.kr/briefing/speechList.do"], limit: 20, korea: true },
+    { name: "✅사실은이렇습니다", urls: ["https://www.korea.kr/briefing/actuallyList.do"], limit: 20, korea: true },
+    { name: "🏢부처별 뉴스", urls: ["https://www.korea.kr/news/ministryNewsList.do"], limit: 20, korea: true },
+    { name: "💬국민이 말하는 정책", urls: ["https://www.korea.kr/news/reporterList.do"], limit: 20, korea: true },
+    { name: "✍오피니언", urls: ["https://www.korea.kr/news/celebrityList.do"], limit: 20, korea: true },
+    { name: "🔎키워드 뉴스", urls: ["https://www.korea.kr/news/customizedNewsList.do"], limit: 20, korea: true },
     { name: "🏛 정치(연합뉴스)", urls: ["https://www.yna.co.kr/rss/politics.xml"], limit: 15 },
     { name: "💰 경제(연합뉴스)", urls: ["https://www.yna.co.kr/rss/economy.xml"], limit: 15 },
-    { name: "🏛 정치(뉴시스)", urls: ["https://www.newsis.com/RSS/politics.xml"], limit: 15 },
     { name: "📢 행정안전부 알림", urls: ["https://www.mois.go.kr/gpms/view/jsp/rss/rss.jsp?ctxCd=1001"], limit: 15 },
   ],
   en: [
