@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { ECO_SOURCES, GROUPS } from "./config";
 import { fetchMarket } from "./market";
 import { fetchWeather } from "./weather";
-import { Article, fetchRss, firstWithItems } from "./rss";
+import { Article, fetchKoreaList, fetchRss, firstWithItems } from "./rss";
 
 const app = new Hono();
 app.use("/api/*", cors({ origin: ["https://profguclass.github.io"], allowMethods: ["GET"] }));
@@ -53,6 +53,7 @@ app.get("/api/feed/:group/:index", (c) => {
         const items: Article[] = used.flatMap((l) => l.items.map((a) => ({ ...a, source: l.label })));
         return { items, note: used.length ? `출처: ${used.map((l) => l.label).join(" · ")}` : "" };
       }
+      if (tab.korea) return { items: await fetchKoreaList(tab.urls[0], tab.limit), note: "" };
       return { items: await firstWithItems(tab.urls, tab.limit, tab.clean), note: "" };
     },
     (v) => v.items.length > 0,
