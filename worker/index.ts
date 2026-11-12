@@ -7,17 +7,13 @@ import { Article, fetchRss, firstWithItems } from "./rss";
 
 const app = new Hono();
 app.use("/api/*", cors({ origin: ["https://profguclass.github.io"], allowMethods: ["GET"] }));
-const lastGood = new Map<string, unknown>();
+const lastGood = new Map<string, { at: number; body: any }>();
 
-// 짧게 캐시하고, 실패하면 직전에 성공한 값을 돌려준다.
+// 메모리에 짧게 캐시하고, 실패하면 직전에 성공한 값을 돌려준다.
 async function cached(c: any, key: string, ttl: number, produce: () => Promise<any>, ok: (v: any) => boolean = () => true) {
   const bypass = c.req.query("refresh") === "1";
-  const cacheKey = new Request(`https://cache.local/${key}`);
-  const cache = (caches as unknown as { default: Cache }).default;
-  if (!bypass) {
-    const hit = await cache.match(cacheKey);
-    if (hit) return c.json(await hit.json());
-  }
+  const hit = lastGood.get(key);
+  if (hit && !bypass && Date.now() - hit.at < ttl * 1000) return c.json(hit.body);
   let value: any;
   try {
     value = await produce();
@@ -26,12 +22,10 @@ async function cached(c: any, key: string, ttl: number, produce: () => Promise<a
   }
   if (value && ok(value)) {
     const body = { ...value, updatedAt: new Date().toISOString() };
-    lastGood.set(key, body);
-    c.executionCtx.waitUntil(cache.put(cacheKey, new Response(JSON.stringify(body), { headers: { "Cache-Control": `max-age=${ttl}` } })));
+    lastGood.set(key, { at: Date.now(), body });
     return c.json(body);
   }
-  const old = lastGood.get(key);
-  if (old) return c.json({ ...(old as object), stale: true });
+  if (hit) return c.json({ ...hit.body, stale: true });
   return c.json({ error: "불러오지 못했어요" }, 502);
 }
 
