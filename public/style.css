@@ -19,6 +19,7 @@ tr.down td:nth-child(n+3){color:var(--down);font-weight:700}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:14px}
 @media(max-width:720px){.grid{grid-template-columns:1fr}h1{font-size:1.35rem}}
 .box{overflow-x:auto}
+.grid.sub{margin:16px 0 0}
 .tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
 .tab,.btn{background:none;border:1px solid var(--line);color:var(--mut);padding:7px 13px;border-radius:999px;font:inherit;font-size:.9rem;cursor:pointer;min-height:36px}
 .tab[aria-selected="true"]{background:var(--acc);border-color:var(--acc);color:#0b1020;font-weight:700}
