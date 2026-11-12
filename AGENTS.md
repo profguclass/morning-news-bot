@@ -1,6 +1,8 @@
 ## 이 앱
-- News_app1.py: Streamlit 뉴스 대시보드(날씨·지수·정부/영문/국내 뉴스). 원본 앱이며 수정하지 않음.
-- build_site.py: 위 앱의 수집 함수를 재사용해 정적 페이지(site/index.html)를 생성.
-- .github/workflows/pages.yml: main 푸시와 매일 06:30(KST)에 페이지를 만들어 GitHub Pages에 배포.
-- 결정: GitHub Pages는 정적 호스팅이라 "자동 갱신 정적 페이지" 방식을 선택함.
-- 알려진 점: korea.kr RSS는 일부 환경에서 막혀 비어 보일 수 있음.
+- 열 때마다 최신 데이터를 가져오는 뉴스 대시보드: 날씨(수원), 국내외 지수·관심 종목, 정부/영문/국내 뉴스 탭.
+- public/: 화면(index.html, app.js, style.css)과 홈 화면 설치용 파일(manifest, sw, 아이콘). 지수 1분·날씨 30분·뉴스 5분마다 자동 갱신, 새로고침 버튼 있음.
+- worker/: 데이터를 실시간 수집하는 API. 짧게 캐시하고, 실패하면 직전 값을 보여 줌. 출처 목록은 worker/config.ts.
+- 저장하는 사용자 데이터 없음. 구역 하나가 실패해도 그 구역만 오류 안내를 보임.
+- News_app1.py는 원래 Streamlit 앱이며 참고용으로 남김(수정하지 않음).
+- 결정: 정적 GitHub Pages(하루 한 번 갱신)를 버리고 BAZE 호스팅으로 옮김. 초단위 시세·로그인·알림은 하지 않음.
+- 알려진 점: korea.kr(정부 소식)은 일부 서버에서 막혀 비어 보일 수 있음. Pages 쪽 옛 스냅샷은 더 이상 갱신되지 않음.

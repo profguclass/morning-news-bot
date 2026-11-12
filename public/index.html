@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>나의 소식통 · 실시간 뉴스 대시보드</title>
+<meta name="description" content="날씨, 증시, 국내외 주요 뉴스를 열 때마다 최신으로 보여 주는 대시보드">
+<meta property="og:title" content="나의 소식통 · 실시간 뉴스 대시보드">
+<meta property="og:description" content="날씨, 증시, 국내외 주요 뉴스를 열 때마다 최신으로 보여 줘요.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0e1117">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <header class="top">
+    <div>
+      <h1>📰 Daily News Dashboard</h1>
+      <p class="stamp" id="stamp" aria-live="polite">불러오는 중이에요…</p>
+    </div>
+    <button id="refresh" class="btn" type="button">🔄 새로고침</button>
+  </header>
+
+  <section aria-labelledby="h-weather">
+    <h2 id="h-weather">🌤 오늘의 날씨 — 경기도 수원</h2>
+    <div id="weather" class="box"><p class="empty">불러오는 중이에요…</p></div>
+  </section>
+
+  <section aria-labelledby="h-market">
+    <h2 id="h-market">📊 주요 지수 <span class="live" id="market-time"></span></h2>
+    <div id="market" class="box"><p class="empty">불러오는 중이에요…</p></div>
+    <p class="cap">※ 국내: 네이버 금융 | 해외: Yahoo Finance · 약 1분마다 갱신</p>
+  </section>
+
+  <section aria-labelledby="h-gov">
+    <h2 id="h-gov">🏛️ 오늘의 정부 소식</h2>
+    <p class="cap">출처: 대한민국 정책브리핑 (korea.kr)</p>
+    <div class="feedgroup" data-group="gov"></div>
+  </section>
+
+  <section aria-labelledby="h-en">
+    <h2 id="h-en">🌐 English News</h2>
+    <div class="feedgroup" data-group="en"></div>
+  </section>
+
+  <section aria-labelledby="h-kr">
+    <h2 id="h-kr">📰 국내 주요 뉴스</h2>
+    <div class="feedgroup" data-group="kr"></div>
+  </section>
+</main>
+<script src="app.js" defer></script>
+</body>
+</html>
