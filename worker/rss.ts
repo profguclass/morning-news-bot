@@ -37,7 +37,7 @@ function safeLink(raw: string, clean: boolean): string {
 
 export async function fetchRss(url: string, limit: number, clean = false): Promise<Article[]> {
   try {
-    const r = await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" }, signal: AbortSignal.timeout(8000) });
+    const r = await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" }, signal: AbortSignal.timeout(6000) });
     if (!r.ok) return [];
     const xml = await r.text();
     const items = xml.match(/<item[\s>][\s\S]*?<\/item>/gi) ?? [];
@@ -52,10 +52,8 @@ export async function fetchRss(url: string, limit: number, clean = false): Promi
   }
 }
 
+// 모든 후보를 동시에 요청하고, 우선순위가 높은 것 중 기사가 있는 첫 결과를 쓴다.
 export async function firstWithItems(urls: string[], limit: number, clean = false): Promise<Article[]> {
-  for (const u of urls) {
-    const a = await fetchRss(u, limit, clean);
-    if (a.length) return a;
-  }
-  return [];
+  const results = await Promise.all(urls.map((u) => fetchRss(u, limit, clean)));
+  return results.find((r) => r.length) ?? [];
 }
