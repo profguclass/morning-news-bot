@@ -15,12 +15,14 @@ export const WATCHLIST: Record<string, ["naver" | "yahoo", string]> = {
   Tesla: ["yahoo", "TSLA"],
 };
 
-export type Tab = { name: string; urls: string[]; limit: number; clean?: boolean; eco?: boolean };
+export type Tab = { name: string; urls: string[]; limit: number; clean?: boolean; eco?: boolean; korea?: boolean };
 const gn = (q: string) => `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=ko&gl=KR&ceid=KR:ko`;
 const gnTopic = (t: string) => `https://news.google.com/rss/headlines/section/topic/${t}?hl=ko&gl=KR&ceid=KR:ko`;
 
 export const GROUPS: Record<string, Tab[]> = {
   gov: [
+    { name: "📋보도자료", urls: ["https://www.korea.kr/briefing/pressReleaseList.do"], limit: 15, korea: true },
+    { name: "✅사실은이렇습니다", urls: ["https://www.korea.kr/briefing/actuallyList.do"], limit: 15, korea: true },
     { name: "🏛 정치(연합뉴스)", urls: ["https://www.yna.co.kr/rss/politics.xml"], limit: 15 },
     { name: "💰 경제(연합뉴스)", urls: ["https://www.yna.co.kr/rss/economy.xml"], limit: 15 },
     { name: "🏛 정치(뉴시스)", urls: ["https://www.newsis.com/RSS/politics.xml"], limit: 15 },

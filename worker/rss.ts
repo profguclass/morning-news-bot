@@ -57,3 +57,32 @@ export async function firstWithItems(urls: string[], limit: number, clean = fals
   const results = await Promise.all(urls.map((u) => fetchRss(u, limit, clean)));
   return results.find((r) => r.length) ?? [];
 }
+
+// 정책브리핑 누리집 목록 페이지(RSS 중단)에서 제목·요약·링크만 읽는다.
+export async function fetchKoreaList(url: string, limit: number): Promise<Article[]> {
+  try {
+    const r = await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" }, signal: AbortSignal.timeout(6000) });
+    if (!r.ok) return [];
+    const html = await r.text();
+    const out: Article[] = [];
+    const re = /<a href="(\/briefing\/[A-Za-z]+View\.do\?newsId=\d+)[^"]*"[^>]*>([\s\S]*?)<\/a>/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html)) && out.length < limit) {
+      const block = m[2];
+      const title = block.match(/<strong>([\s\S]*?)<\/strong>/);
+      if (!title) continue;
+      const lead = block.match(/<span class="lead">([\s\S]*?)<\/span>/);
+      const spans = [...block.matchAll(/<span>([^<]*)<\/span>/g)].map((x) => decode(x[1]).trim());
+      out.push({
+        title: strip(title[1]),
+        link: "https://www.korea.kr" + decode(m[1]),
+        desc: lead ? strip(lead[1]).slice(0, 180) : "",
+        pubDate: spans[0] ?? "",
+        source: spans[1] || undefined,
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
