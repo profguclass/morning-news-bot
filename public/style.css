@@ -36,3 +36,4 @@ a{color:var(--fg)} a:hover{color:var(--acc)}
 .skel{height:16px;border-radius:6px;background:linear-gradient(90deg,var(--line),#232a3a,var(--line));margin:10px 0;animation:s 1.2s infinite;background-size:200% 100%}
 @keyframes s{to{background-position:-200% 0}}
 @media(prefers-reduced-motion:reduce){.skel{animation:none}}
+[hidden]{display:none!important}

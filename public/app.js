@@ -134,6 +134,7 @@ function select(g, i) {
   });
   if (!st.loaded[i] || Date.now() - st.loaded[i] > 5 * 60e3) loadFeed(g, i, false);
 }
+const isPhoneApp = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true || matchMedia("(pointer: coarse) and (max-width: 820px)").matches;
 function buildGroup(root, names) {
   const g = root.dataset.group;
   const st = (groups[g] = { active: 0, loaded: {}, buttons: [], panels: [] });
@@ -147,12 +148,13 @@ function buildGroup(root, names) {
       st.buttons[n].focus();
     });
     st.buttons.push(b);
+    if (g === "flash" && i === 0 && !isPhoneApp) b.hidden = true;
     bar.append(b);
     const p = el("div", { role: "tabpanel" });
     st.panels.push(p);
   });
   root.replaceChildren(bar, ...st.panels);
-  select(g, 0);
+  select(g, st.buttons.findIndex((b) => !b.hidden));
 }
 
 async function init() {
