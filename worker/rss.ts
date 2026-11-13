@@ -91,3 +91,75 @@ export async function fetchKoreaList(url: string, limit: number): Promise<Articl
     return [];
   }
 }
+
+const PORTAL_UA = UA;
+
+// 네이버 뉴스 최신 목록(EUC-KR). pages 쪽수만큼 이어서 읽는다.
+export async function fetchNaverLatest(pages = 1): Promise<Article[]> {
+  const out: Article[] = [];
+  const seen = new Set<string>();
+  const htmls = await Promise.all(
+    Array.from({ length: pages }, async (_, i) => {
+      try {
+        const r = await fetch(`https://news.naver.com/main/list.naver?mode=LSD&mid=sec&sid1=001&page=${i + 1}`, {
+          headers: { "User-Agent": PORTAL_UA, "Accept-Language": "ko-KR,ko;q=0.9" },
+          signal: AbortSignal.timeout(6000),
+        });
+        if (!r.ok) return "";
+        return new TextDecoder("euc-kr").decode(await r.arrayBuffer());
+      } catch {
+        return "";
+      }
+    }),
+  );
+  for (const html of htmls) {
+    for (const li of html.match(/<li[^>]*>\s*<dl>[\s\S]*?<\/dl>/g) ?? []) {
+      const a = li.match(/<dt>\s*<a href="(https:\/\/n\.news\.naver\.com\/[^"]+)"[^>]*>\s*([^<]+?)\s*<\/a>/);
+      if (!a || seen.has(a[1])) continue;
+      seen.add(a[1]);
+      const lede = li.match(/<span class="lede">([\s\S]*?)<\/span>/);
+      const src = li.match(/<span class="writing">([^<]*)<\/span>/);
+      const date = li.match(/<span class="date[^"]*">([^<]*)<\/span>/);
+      out.push({
+        title: strip(a[2]),
+        link: safeLink(decode(a[1]), false),
+        desc: lede ? strip(lede[1]).replace(/\s*…$/, "…").slice(0, 160) : "",
+        pubDate: date ? decode(date[1]).trim() : "",
+        source: src ? decode(src[1]).trim() : undefined,
+      });
+    }
+  }
+  return out;
+}
+
+// 다음 뉴스 홈의 "이 시각 주요뉴스". (다음은 속보 전용 목록 페이지를 더 이상 제공하지 않는다.)
+export async function fetchDaumHeadlines(limit: number): Promise<Article[]> {
+  try {
+    const r = await fetch("https://news.daum.net/", { headers: { "User-Agent": PORTAL_UA, "Accept-Language": "ko-KR,ko;q=0.9" }, signal: AbortSignal.timeout(6000) });
+    if (!r.ok) return [];
+    const html = await r.text();
+    const start = html.indexOf("이 시각 주요뉴스");
+    if (start < 0) return [];
+    const end = html.indexOf("오늘의 연재", start);
+    const block = html.slice(start, end > 0 ? end : start + 60000);
+    const out: Article[] = [];
+    for (const li of block.match(/<li>\s*<a class="item_newsheadline2"[\s\S]*?<\/li>/g) ?? []) {
+      const href = li.match(/href="(https:\/\/v\.daum\.net\/v\/\d+)"/);
+      const title = li.match(/<strong class="tit_txt">([\s\S]*?)<\/strong>/);
+      if (!href || !title) continue;
+      const desc = li.match(/<p class="desc_txt">([\s\S]*?)<\/p>/);
+      const info = [...li.matchAll(/<span class="txt_info">([^<]*)<\/span>/g)].map((x) => decode(x[1]).trim());
+      out.push({
+        title: strip(title[1]),
+        link: href[1],
+        desc: desc ? strip(desc[1]).slice(0, 160) : "",
+        pubDate: info[1] ?? "",
+        source: info[0] || undefined,
+      });
+      if (out.length >= limit) break;
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}

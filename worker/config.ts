@@ -34,11 +34,16 @@ export const COMMODITIES: Record<string, [string, number]> = {
   "비트코인 (USD)": ["BTC-USD", 1],
 };
 
-export type Tab = { name: string; urls: string[]; limit: number; clean?: boolean; eco?: boolean; korea?: boolean; multi?: [string, string][] };
+export type Tab = { name: string; urls: string[]; limit: number; clean?: boolean; eco?: boolean; korea?: boolean; portal?: "naver" | "naverFlash" | "daum"; ttl?: number; multi?: [string, string][] };
 const gn = (q: string) => `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=ko&gl=KR&ceid=KR:ko`;
 const gnTopic = (t: string) => `https://news.google.com/rss/headlines/section/topic/${t}?hl=ko&gl=KR&ceid=KR:ko`;
 
 export const GROUPS: Record<string, Tab[]> = {
+  flash: [
+    { name: "🚨 네이버 속보", urls: [], limit: 15, portal: "naverFlash", ttl: 60 },
+    { name: "🕒 네이버 최신", urls: [], limit: 20, portal: "naver", ttl: 60 },
+    { name: "📌 다음 주요뉴스", urls: [], limit: 15, portal: "daum", ttl: 60 },
+  ],
   gov: [
     { name: "📋보도자료", urls: ["https://www.korea.kr/briefing/pressReleaseList.do"], limit: 20, korea: true },
     { name: "📰정책뉴스", urls: ["https://www.korea.kr/news/policyNewsList.do"], limit: 20, korea: true },
