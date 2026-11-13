@@ -104,7 +104,7 @@ function renderFeed(panel, data) {
   data.items.forEach((n, i) => {
     const li = el("li", {}, el("a", { href: n.link, target: "_blank", rel: "noopener noreferrer" }, n.title));
     if (n.source) li.append(el("span", { class: "src" }, n.source));
-    if (n.pubDate && /^\d{4}\.\d{2}\.\d{2}/.test(n.pubDate)) li.append(el("span", { class: "src" }, n.pubDate));
+    if (n.pubDate && /^(\d{4}\.\d{2}\.\d{2}|.*(전|방금))$/.test(n.pubDate)) li.append(el("span", { class: "src" }, n.pubDate));
     if (n.desc) li.append(el("p", {}, n.desc));
     ol.append(li);
   });
@@ -185,6 +185,7 @@ function startTimers() {
   timers = [
     setInterval(() => loadMarket(false), 60e3),
     setInterval(() => loadWeather(false), 30 * 60e3),
+    setInterval(() => { if (groups.flash) loadFeed("flash", groups.flash.active, false); }, 60e3),
     setInterval(() => { for (const g of Object.keys(groups)) loadFeed(g, groups[g].active, false); }, 5 * 60e3),
   ];
 }

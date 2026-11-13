@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { ECO_SOURCES, GROUPS } from "./config";
 import { fetchMarket } from "./market";
 import { fetchWeather } from "./weather";
-import { Article, fetchKoreaList, fetchRss, firstWithItems } from "./rss";
+import { Article, fetchDaumHeadlines, fetchKoreaList, fetchNaverLatest, fetchRss, firstWithItems } from "./rss";
 
 const app = new Hono();
 app.use("/api/*", cors({ origin: ["https://profguclass.github.io"], allowMethods: ["GET"] }));
@@ -45,13 +45,20 @@ app.get("/api/feed/:group/:index", (c) => {
   if (!tab) return c.json({ error: "not found" }, 404);
   const key = `feed:${c.req.param("group")}:${c.req.param("index")}`;
   return cached(
-    c, key, 240,
+    c, key, tab.ttl ?? 240,
     async () => {
       if (tab.eco) {
         const lists = await Promise.all(ECO_SOURCES.map(async ([label, url]) => ({ label, items: await fetchRss(url, tab.limit) })));
         const used = lists.filter((l) => l.items.length);
         const items: Article[] = used.flatMap((l) => l.items.map((a) => ({ ...a, source: l.label })));
         return { items, note: used.length ? `출처: ${used.map((l) => l.label).join(" · ")}` : "" };
+      }
+      if (tab.portal === "daum") return { items: await fetchDaumHeadlines(tab.limit), note: "출처: 다음 뉴스 홈의 '이 시각 주요뉴스'예요. 다음은 속보 전용 목록을 따로 제공하지 않아요." };
+      if (tab.portal === "naver") return { items: (await fetchNaverLatest(1)).slice(0, tab.limit), note: "출처: 네이버 뉴스 최신 기사 · 1분마다 갱신" };
+      if (tab.portal === "naverFlash") {
+        const all = await fetchNaverLatest(8);
+        const items = all.filter((a) => /속보|긴급|\[단독\]/.test(a.title)).slice(0, tab.limit);
+        return { items, allowEmpty: true, note: "출처: 네이버 뉴스 최신 기사 중 제목에 [속보]·[긴급]·[단독]이 붙은 기사" + (items.length ? "" : " · 지금은 해당 기사가 없어요") };
       }
       if (tab.multi) {
         const lists = await Promise.all(tab.multi.map(async ([label, url]) => ({ label, items: await fetchRss(url, tab.limit) })));
@@ -63,7 +70,7 @@ app.get("/api/feed/:group/:index", (c) => {
       if (tab.korea) return { items: await fetchKoreaList(tab.urls[0], tab.limit), note: "" };
       return { items: await firstWithItems(tab.urls, tab.limit, tab.clean), note: "" };
     },
-    (v) => v.items.length > 0,
+    (v) => v.items.length > 0 || v.allowEmpty,
   );
 });
 
