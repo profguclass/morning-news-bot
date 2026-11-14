@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { ECO_SOURCES, GROUPS } from "./config";
+import { ECO_SOURCES, GROUPS, PREFERRED_PRESS } from "./config";
 import { fetchMarket } from "./market";
 import { fetchWeather } from "./weather";
 import { Article, fetchDaumHeadlines, fetchKoreaList, fetchNaverLatest, fetchRss, firstWithItems } from "./rss";
@@ -53,13 +53,15 @@ app.get("/api/feed/:group/:index", (c) => {
         const items: Article[] = used.flatMap((l) => l.items.map((a) => ({ ...a, source: l.label })));
         return { items, note: used.length ? `출처: ${used.map((l) => l.label).join(" · ")}` : "" };
       }
-      if (tab.portal === "daum") return { items: await fetchDaumHeadlines(tab.limit), note: "출처: 다음 뉴스 홈의 '이 시각 주요뉴스'예요. 다음은 속보 전용 목록을 따로 제공하지 않아요." };
-      if (tab.portal === "naver") return { items: (await fetchNaverLatest(2)).slice(0, tab.limit), note: "출처: 네이버 뉴스 최신 기사 · 1분마다 갱신" };
+      if (tab.portal === "daum") return { items: preferFirst(await fetchDaumHeadlines(30)).slice(0, tab.limit), note: "출처: 다음 뉴스 홈의 '이 시각 주요뉴스' · 지정 언론사 기사를 먼저 보여 줘요." };
+      if (tab.portal === "naver") return { items: preferFirst(await fetchNaverLatest(5)).slice(0, tab.limit), note: "출처: 네이버 뉴스 최신 기사 · 지정 언론사 기사를 먼저 보여 줘요 · 1분마다 갱신" };
       if (tab.portal === "naverFlash") {
-        const all = await fetchNaverLatest(3);
+        const all = preferFirst(await fetchNaverLatest(5));
         const flag = (x: Article) => /속보|긴급|\[단독\]/.test(x.title);
-        const items = [...all.filter(flag), ...all.filter((x) => !flag(x))].slice(0, tab.limit);
-        return { items, note: "출처: 네이버 뉴스 속보 · [속보]·[긴급]·[단독] 기사를 먼저 보여 줘요 · 1분마다 갱신" };
+        const pref = (x: Article) => isPreferred(x.source);
+        const rank = (x: Article) => (pref(x) ? 0 : 2) + (flag(x) ? 0 : 1);
+        const items = all.map((x, i) => [x, i] as const).sort((p, q) => rank(p[0]) - rank(q[0]) || p[1] - q[1]).map(([x]) => x).slice(0, tab.limit);
+        return { items, note: "출처: 네이버 뉴스 속보 · 지정 언론사 기사, 그다음 [속보]·[긴급]·[단독] 기사를 먼저 보여 줘요 · 1분마다 갱신" };
       }
       if (tab.multi) {
         const lists = await Promise.all(tab.multi.map(async ([label, url]) => ({ label, items: await fetchRss(url, tab.limit) })));
@@ -77,3 +79,12 @@ app.get("/api/feed/:group/:index", (c) => {
 
 app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
 export default app;
+
+const norm = (x = "") => x.replace(/\s+/g, "").toLowerCase();
+const PREF = new Set(PREFERRED_PRESS.map(norm));
+function isPreferred(source?: string) {
+  return PREF.has(norm(source));
+}
+function preferFirst(list: Article[]) {
+  return [...list.filter((x) => isPreferred(x.source)), ...list.filter((x) => !isPreferred(x.source))];
+}
