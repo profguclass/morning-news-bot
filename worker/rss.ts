@@ -115,8 +115,11 @@ export async function fetchNaverLatest(pages = 1): Promise<Article[]> {
   for (const html of htmls) {
     for (const li of html.match(/<li[^>]*>\s*<dl>[\s\S]*?<\/dl>/g) ?? []) {
       const a = li.match(/<dt>\s*<a href="(https:\/\/n\.news\.naver\.com\/[^"]+)"[^>]*>\s*([^<]+?)\s*<\/a>/);
-      if (!a || seen.has(a[1])) continue;
+      if (!a) continue;
+      const key = strip(a[2]).replace(/[\s\p{P}]/gu, "").toLowerCase();
+      if (seen.has(a[1]) || seen.has(key)) continue;
       seen.add(a[1]);
+      seen.add(key);
       const lede = li.match(/<span class="lede">([\s\S]*?)<\/span>/);
       const src = li.match(/<span class="writing">([^<]*)<\/span>/);
       const date = li.match(/<span class="date[^"]*">([^<]*)<\/span>/);
