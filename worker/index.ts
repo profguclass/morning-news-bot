@@ -54,9 +54,9 @@ app.get("/api/feed/:group/:index", (c) => {
         return { items, note: used.length ? `출처: ${used.map((l) => l.label).join(" · ")}` : "" };
       }
       if (tab.portal === "daum") return { items: await fetchDaumHeadlines(tab.limit), note: "출처: 다음 뉴스 홈의 '이 시각 주요뉴스'예요. 다음은 속보 전용 목록을 따로 제공하지 않아요." };
-      if (tab.portal === "naver") return { items: (await fetchNaverLatest(1)).slice(0, tab.limit), note: "출처: 네이버 뉴스 최신 기사 · 1분마다 갱신" };
+      if (tab.portal === "naver") return { items: (await fetchNaverLatest(2)).slice(0, tab.limit), note: "출처: 네이버 뉴스 최신 기사 · 1분마다 갱신" };
       if (tab.portal === "naverFlash") {
-        const all = await fetchNaverLatest(2);
+        const all = await fetchNaverLatest(3);
         const flag = (x: Article) => /속보|긴급|\[단독\]/.test(x.title);
         const items = [...all.filter(flag), ...all.filter((x) => !flag(x))].slice(0, tab.limit);
         return { items, note: "출처: 네이버 뉴스 속보 · [속보]·[긴급]·[단독] 기사를 먼저 보여 줘요 · 1분마다 갱신" };
