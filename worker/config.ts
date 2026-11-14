@@ -77,6 +77,18 @@ export const GROUPS: Record<string, Tab[]> = {
     { name: "🔴 정치속보", urls: ["https://www.yna.co.kr/rss/politics.xml", gn("정치 속보 when:1h"), gn("정치 when:3h"), gnTopic("POLITICS")], limit: 8 },
     { name: "🔴 사회속보", urls: ["https://www.yna.co.kr/rss/society.xml", gn("사회 속보 when:1h"), gn("사건 사고 when:3h"), gnTopic("NATION")], limit: 8 },
     {
+      name: "🌐 세계", urls: [], limit: 3,
+      multi: [
+        ["경향신문", "https://www.khan.co.kr/rss/rssdata/kh_world.xml"],
+        ["한겨레", "https://www.hani.co.kr/rss/international/"],
+        ["동아일보", "https://rss.donga.com/international.xml"],
+        ["조선일보", "https://www.chosun.com/arc/outboundfeeds/rss/category/international/?outputType=xml"],
+        ["JTBC", "https://fs.jtbc.co.kr/RSS/international.xml"],
+        ["오마이뉴스", "https://rss.ohmynews.com/rss/international.xml"],
+        ["연합뉴스", "https://www.yna.co.kr/rss/international.xml"],
+      ],
+    },
+    {
       name: "🔬 과학", urls: [], limit: 4,
       multi: [
         ["경향신문", "https://www.khan.co.kr/rss/rssdata/science_news.xml"],
