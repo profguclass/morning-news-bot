@@ -34,6 +34,9 @@ export const COMMODITIES: Record<string, [string, number]> = {
   "비트코인 (USD)": ["BTC-USD", 1],
 };
 
+// 뉴스속보에서 먼저 보여 줄 언론사(공백 무시하고 비교)
+export const PREFERRED_PRESS = ["주간경향", "동아사이언스", "경향신문", "한겨레21", "KBS", "MBC", "JTBC", "오마이뉴스", "뉴스타파", "월간산", "동아일보", "조선일보", "한겨레", "프레시안", "시사IN"];
+
 export type Tab = { name: string; urls: string[]; limit: number; clean?: boolean; eco?: boolean; korea?: boolean; portal?: "naver" | "naverFlash" | "daum"; ttl?: number; multi?: [string, string][] };
 const gn = (q: string) => `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=ko&gl=KR&ceid=KR:ko`;
 const gnTopic = (t: string) => `https://news.google.com/rss/headlines/section/topic/${t}?hl=ko&gl=KR&ceid=KR:ko`;

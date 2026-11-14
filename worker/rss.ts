@@ -138,7 +138,7 @@ export async function fetchNaverLatest(pages = 1): Promise<Article[]> {
 // 다음 뉴스 홈의 "이 시각 주요뉴스". (다음은 속보 전용 목록 페이지를 더 이상 제공하지 않는다.)
 export async function fetchDaumHeadlines(limit: number): Promise<Article[]> {
   try {
-    const r = await fetch("https://news.daum.net/", { headers: { "User-Agent": PORTAL_UA, "Accept-Language": "ko-KR,ko;q=0.9" }, signal: AbortSignal.timeout(6000) });
+    const r = await fetch("https://news.daum.net/", { headers: { "User-Agent": PORTAL_UA, "Accept-Language": "ko-KR,ko;q=0.9" }, signal: AbortSignal.timeout(10000) });
     if (!r.ok) return [];
     const html = await r.text();
     const start = html.indexOf("이 시각 주요뉴스");
