@@ -70,6 +70,15 @@ app.get("/api/feed/:group/:index", (c) => {
         for (let i = 0; i < tab.limit; i++) for (const l of used) if (l.items[i]) items.push({ ...l.items[i], source: l.label });
         return { items, note: used.length ? `출처: ${used.map((l) => l.label).join(" · ")}` : "" };
       }
+      if (tab.sections) {
+        const lists = await Promise.all(tab.sections.map(async (x) => ({ label: x.label, items: await fetchHomeTop(x.url, new RegExp(x.re), x.base, 4) })));
+        const used = lists.filter((l) => l.items.length);
+        const seen = new Set<string>();
+        let items: Article[] = [];
+        for (let i = 0; i < 4; i++) for (const l of used) if (l.items[i] && !seen.has(l.items[i].link)) { seen.add(l.items[i].link); items.push({ ...l.items[i], source: l.label }); }
+        items = items.slice(0, tab.limit);
+        return { items: await fillImages(items), note: used.length ? `출처: ${used.map((l) => l.label).join(" · ")} 누리집의 주요 기사` : "" };
+      }
       if (tab.home) {
         const re = new RegExp(tab.home.re);
         const urls = [tab.home.url, ...(tab.home.more ?? [])];
