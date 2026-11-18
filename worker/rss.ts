@@ -262,44 +262,75 @@ export async function fetchHomeTop(url: string, linkRe: RegExp, base: string, li
       byLink.set(link, cur);
     }
     const seen = new Set<string>();
-    const out: Article[] = [];
+    const cands: Article[] = [];
     for (const a of byLink.values()) {
       const k = a.title.replace(/[\s\p{P}]/gu, "");
       if (!a.title || seen.has(k)) continue;
       seen.add(k);
-      out.push(a);
-      if (out.length >= limit) break;
+      cands.push(a);
+      if (cands.length >= limit + 8) break;
     }
-    return out;
+    const metas = await Promise.all(cands.map((a) => articleMeta(a.link)));
+    const today = kstToday();
+    const out: Article[] = [];
+    cands.forEach((a, i) => {
+      const meta = metas[i];
+      if (!meta.day || meta.day !== today) return;
+      out.push({ ...a, pubDate: meta.day, image: a.image ?? meta.image });
+    });
+    return out.slice(0, limit);
   } catch {
     return [];
   }
 }
 
-// 사진이 없는 기사는 기사 페이지의 대표 사진(og:image)을 읽어 채운다.
-export async function fillImages(items: Article[]): Promise<Article[]> {
-  return Promise.all(
-    items.map(async (a) => {
-      if (a.image) return a;
-      try {
-        const r = await fetch(a.link, { headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" }, signal: AbortSignal.timeout(8000) });
-        if (!r.ok || !r.body) return a;
-        const reader = r.body.getReader();
-        let html = "";
-        const dec = new TextDecoder();
-        const pick = () => html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-        let m = pick();
-        while (!m && html.length < 400000) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          html += dec.decode(value, { stream: true });
-          m = pick();
+// 한국 시간 기준 오늘 날짜(YYYY-MM-DD)
+function kstToday(): string {
+  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+// 기사 페이지에서 발행일(한국 시간 기준 YYYY-MM-DD)과 대표 사진을 읽는다. 날짜를 못 읽으면 day는 빈 값.
+async function articleMeta(link: string): Promise<{ day: string; image?: string }> {
+  try {
+    const r = await fetch(link, { headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" }, signal: AbortSignal.timeout(8000) });
+    if (!r.ok || !r.body) return { day: "" };
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let html = "";
+    let day = "";
+    let image: string | undefined;
+    const dateKey = /article:published_time|og:pubdate|published_time|published_date|datePublished|createDate|pubdate/gi;
+    const imgRe = /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i;
+    const imgRe2 = /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i;
+    const pick = () => {
+      if (!day) {
+        for (const k of html.matchAll(dateKey)) {
+          const dm = html.slice(k.index, k.index! + 120).match(/\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?(?:Z|[+-]\d{2}:?\d{2})?/);
+          if (dm) { day = dayOf(dm[0]); break; }
         }
-        reader.cancel().catch(() => {});
-        return { ...a, image: imgUrl(m?.[1]) };
-      } catch {
-        return a;
       }
-    }),
-  );
+      if (!image) image = (html.match(imgRe) ?? html.match(imgRe2))?.[1];
+      return !!day && !!image;
+    };
+    while (!pick() && html.length < 400000) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      html += dec.decode(value, { stream: true });
+    }
+    reader.cancel().catch(() => {});
+    return { day, image: imgUrl(image) };
+  } catch {
+    return { day: "" };
+  }
+}
+
+// 날짜 문자열을 한국 시간 YYYY-MM-DD로 바꾼다. 시간대가 없으면 한국 시간으로 본다.
+function dayOf(raw: string): string {
+  const s = raw.trim();
+  if (/(Z|[+-]\d\d:?\d\d)$/.test(s)) {
+    const t = Date.parse(s);
+    return isNaN(t) ? "" : new Date(t + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  }
+  const m = s.match(/(\d{4})[-.](\d{2})[-.](\d{2})/);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : "";
 }
