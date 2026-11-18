@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { ECO_SOURCES, GROUPS, PREFERRED_PRESS } from "./config";
 import { fetchMarket } from "./market";
 import { fetchWeather } from "./weather";
-import { Article, fetchDaumHeadlines, fetchKoreaList, fetchNaverLatest, fetchNaverPress, fetchRss, firstWithItems } from "./rss";
+import { Article, fetchDaumHeadlines, fetchKoreaList, fetchNaverLatest, fetchHomeTop, fillImages, fetchNaverPress, fetchRss, firstWithItems } from "./rss";
 
 const app = new Hono();
 app.use("/api/*", cors({ origin: ["https://profguclass.github.io"], allowMethods: ["GET"] }));
@@ -69,6 +69,16 @@ app.get("/api/feed/:group/:index", (c) => {
         const items: Article[] = [];
         for (let i = 0; i < tab.limit; i++) for (const l of used) if (l.items[i]) items.push({ ...l.items[i], source: l.label });
         return { items, note: used.length ? `출처: ${used.map((l) => l.label).join(" · ")}` : "" };
+      }
+      if (tab.home) {
+        const re = new RegExp(tab.home.re);
+        const urls = [tab.home.url, ...(tab.home.more ?? [])];
+        const lists = await Promise.all(urls.map((u) => fetchHomeTop(u, re, tab.home!.base, tab.limit)));
+        const seen = new Set<string>();
+        let items: Article[] = [];
+        for (let i = 0; i < tab.limit; i++) for (const l of lists) if (l[i] && !seen.has(l[i].link)) { seen.add(l[i].link); items.push(l[i]); }
+        items = items.slice(0, tab.limit);
+        if (items.length >= 3) return { items: await fillImages(items), note: `출처: ${tab.name} 누리집의 주요 기사` };
       }
       if (tab.press) {
         const items = await fetchNaverPress(tab.press, tab.limit);
