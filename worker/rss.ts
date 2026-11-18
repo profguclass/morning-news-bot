@@ -350,3 +350,32 @@ export function pubDay(raw: string): string {
   const t = Date.parse(raw);
   return isNaN(t) ? "" : new Date(t + 9 * 3600 * 1000).toISOString().slice(0, 10);
 }
+
+// KBS 누리집 기사 목록(공개 목록 API). 제목·시각·사진을 KBS에서 바로 받는다.
+export async function fetchKbsNews(limit: number, days: string[]): Promise<Article[]> {
+  try {
+    const r = await fetch("https://news.kbs.co.kr/api/getNewsList?currentPageNo=1&exceptPhotoYn=N&rowsPerPage=60&broadCode=", { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return [];
+    const rows: any[] = ((await r.json()) as any)?.data ?? [];
+    const out: Article[] = [];
+    for (const day of days) {
+      let n = 0;
+      for (const x of rows) {
+        if (n >= limit) break;
+        const title = strip(String(x.newsTitle ?? ""));
+        if (x.delDate || !/[가-힣]/.test(title) || dayOf(String(x.serviceTime ?? "")) !== day) continue;
+        out.push({
+          title,
+          link: `https://news.kbs.co.kr/news/view.do?ncd=${encodeURIComponent(String(x.newsCode))}`,
+          desc: "",
+          pubDate: day,
+          image: x.imgYn === "Y" && x.imgUrl ? new URL(String(x.imgUrl), "https://news.kbs.co.kr").toString() : undefined,
+        });
+        n++;
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}

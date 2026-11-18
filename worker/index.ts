@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { ECO_SOURCES, GROUPS, PREFERRED_PRESS } from "./config";
 import { fetchMarket } from "./market";
 import { fetchWeather } from "./weather";
-import { Article, fetchDaumHeadlines, fetchKoreaList, fetchNaverLatest, fetchHomeTop, kstDay, pubDay, fetchNaverPress, fetchRss, firstWithItems } from "./rss";
+import { Article, fetchDaumHeadlines, fetchKbsNews, fetchKoreaList, fetchNaverLatest, fetchHomeTop, kstDay, pubDay, fetchNaverPress, fetchRss, firstWithItems } from "./rss";
 
 const app = new Hono();
 app.use("/api/*", cors({ origin: ["https://profguclass.github.io"], allowMethods: ["GET"] }));
@@ -86,6 +86,15 @@ app.get("/api/feed/:group/:index", (c) => {
           items = items.slice(0, tab.limit);
           if (items.length) return { items, note: `출처: ${used.map((l) => l.label).join(" · ")} 누리집의 주요 기사${day === kstDay(0) ? "" : " (어제 기사)"}` };
         }
+      }
+      if (tab.kbs) {
+        const days = [kstDay(0), kstDay(-1)];
+        const rows = await fetchKbsNews(tab.limit, days);
+        for (const day of days) {
+          const items = rows.filter((x) => x.pubDate === day);
+          if (items.length) return { items, note: `출처: KBS 뉴스 누리집${day === kstDay(0) ? "" : " (어제 기사)"}` };
+        }
+        return { items: [], note: "" };
       }
       if (tab.home) {
         const re = new RegExp(tab.home.re);

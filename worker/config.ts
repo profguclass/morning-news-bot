@@ -37,7 +37,7 @@ export const COMMODITIES: Record<string, [string, number]> = {
 // 뉴스속보에서 먼저 보여 줄 언론사(공백 무시하고 비교)
 export const PREFERRED_PRESS = ["주간경향", "동아사이언스", "경향신문", "한겨레21", "KBS", "MBC", "JTBC", "오마이뉴스", "뉴스타파", "월간산", "동아일보", "조선일보", "한겨레", "프레시안", "시사IN"];
 
-export type Tab = { name: string; urls: string[]; limit: number; clean?: boolean; eco?: boolean; korea?: boolean; press?: string; sections?: { label: string; url: string; re: string; base: string }[]; home?: { url: string; re: string; base: string; more?: string[] }; portal?: "naver" | "naverFlash" | "daum"; ttl?: number; multi?: [string, string][] };
+export type Tab = { name: string; urls: string[]; limit: number; kbs?: boolean; clean?: boolean; eco?: boolean; korea?: boolean; press?: string; sections?: { label: string; url: string; re: string; base: string }[]; home?: { url: string; re: string; base: string; more?: string[] }; portal?: "naver" | "naverFlash" | "daum"; ttl?: number; multi?: [string, string][] };
 const gn = (q: string) => `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=ko&gl=KR&ceid=KR:ko`;
 const gnTopic = (t: string) => `https://news.google.com/rss/headlines/section/topic/${t}?hl=ko&gl=KR&ceid=KR:ko`;
 
@@ -130,7 +130,7 @@ export const GROUPS: Record<string, Tab[]> = {
     { name: "SBS", home: { url: "https://news.sbs.co.kr/news/newsMain.do", re: "/news/endPage\\.do\\?news_id=N\\d+", base: "https://news.sbs.co.kr" }, press: "055", urls: ["https://news.sbs.co.kr/news/headlineRssFeed.do?plink=RSSREADER", "https://news.sbs.co.kr/news/newsflashRssFeed.do?plink=RSSREADER"], limit: 10 },
     { name: "JTBC", home: { url: "https://news.jtbc.co.kr/", re: "/article/NB\\d+", base: "https://news.jtbc.co.kr" }, press: "437", urls: [gn("JTBC 뉴스 when:1d")], limit: 10 },
     { name: "MBC", home: { url: "https://imnews.imbc.com/news/2026/politics/", more: ["https://imnews.imbc.com/news/2026/world/", "https://imnews.imbc.com/news/2026/econo/", "https://imnews.imbc.com/news/2026/society/"], re: "/news/20\\d\\d/[a-z]+/article/\\d+_\\d+\\.html", base: "https://imnews.imbc.com" }, press: "214", urls: ["https://imnews.imbc.com/rss/news/news_00.xml", gn("MBC 뉴스 when:1d")], limit: 10 },
-    { name: "KBS", home: { url: "https://news.kbs.co.kr/news/pc/main/main.html", re: "/news/pc/view/view\\.do\\?ncd=\\d+", base: "https://news.kbs.co.kr" }, press: "056", urls: [gn("KBS 뉴스 when:1d")], limit: 10 },
+    { name: "KBS", urls: [], limit: 10, kbs: true },
   ],
 };
 
