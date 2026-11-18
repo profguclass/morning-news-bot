@@ -75,8 +75,10 @@ app.get("/api/feed/:group/:index", (c) => {
         return { items: [], note: "" };
       }
       if (tab.sections) {
-        for (const day of [kstDay(0), kstDay(-1)]) {
-          const lists = await Promise.all(tab.sections.map(async (x) => ({ label: x.label, items: await fetchHomeTop(x.url, new RegExp(x.re), x.base, 4, day) })));
+        const days = [kstDay(0), kstDay(-1)];
+        const all = await Promise.all(tab.sections.map(async (x) => ({ label: x.label, items: await fetchHomeTop(x.url, new RegExp(x.re), x.base, 4, days) })));
+        for (const day of days) {
+          const lists = all.map((l) => ({ label: l.label, items: l.items.filter((x) => x.pubDate === day) }));
           const used = lists.filter((l) => l.items.length);
           const seen = new Set<string>();
           let items: Article[] = [];
@@ -88,8 +90,10 @@ app.get("/api/feed/:group/:index", (c) => {
       if (tab.home) {
         const re = new RegExp(tab.home.re);
         const urls = [tab.home.url, ...(tab.home.more ?? [])];
-        for (const day of [kstDay(0), kstDay(-1)]) {
-          const lists = await Promise.all(urls.map((u) => fetchHomeTop(u, re, tab.home!.base, tab.limit, day)));
+        const days = [kstDay(0), kstDay(-1)];
+        const lists0 = await Promise.all(urls.map((u) => fetchHomeTop(u, re, tab.home!.base, tab.limit, days)));
+        for (const day of days) {
+          const lists = lists0.map((l) => l.filter((x) => x.pubDate === day));
           const seen = new Set<string>();
           let items: Article[] = [];
           for (let i = 0; i < tab.limit; i++) for (const l of lists) if (l[i] && !seen.has(l[i].link)) { seen.add(l[i].link); items.push(l[i]); }
