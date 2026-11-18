@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { ECO_SOURCES, GROUPS, PREFERRED_PRESS } from "./config";
 import { fetchMarket } from "./market";
 import { fetchWeather } from "./weather";
-import { Article, fetchDaumHeadlines, fetchKoreaList, fetchNaverLatest, fetchHomeTop, kstDay, fetchNaverPress, fetchRss, firstWithItems } from "./rss";
+import { Article, fetchDaumHeadlines, fetchKoreaList, fetchNaverLatest, fetchHomeTop, kstDay, pubDay, fetchNaverPress, fetchRss, firstWithItems } from "./rss";
 
 const app = new Hono();
 app.use("/api/*", cors({ origin: ["https://profguclass.github.io"], allowMethods: ["GET"] }));
@@ -64,11 +64,15 @@ app.get("/api/feed/:group/:index", (c) => {
         return { items, note: "출처: 네이버 뉴스 속보 · 지정 언론사 기사, 그다음 [속보]·[긴급]·[단독] 기사를 먼저 보여 줘요 · 1분마다 갱신" };
       }
       if (tab.multi) {
-        const lists = await Promise.all(tab.multi.map(async ([label, url]) => ({ label, items: await fetchRss(url, tab.limit) })));
-        const used = lists.filter((l) => l.items.length);
-        const items: Article[] = [];
-        for (let i = 0; i < tab.limit; i++) for (const l of used) if (l.items[i]) items.push({ ...l.items[i], source: l.label });
-        return { items, note: used.length ? `출처: ${used.map((l) => l.label).join(" · ")}` : "" };
+        const feeds = await Promise.all(tab.multi.map(async ([label, url]) => ({ label, all: await fetchRss(url, 30) })));
+        for (const day of [kstDay(0), kstDay(-1)]) {
+          const lists = feeds.map((f) => ({ label: f.label, items: f.all.filter((x) => pubDay(x.pubDate) === day).slice(0, tab.limit) }));
+          const used = lists.filter((l) => l.items.length);
+          const items: Article[] = [];
+          for (let i = 0; i < tab.limit; i++) for (const l of used) if (l.items[i]) items.push({ ...l.items[i], source: l.label });
+          if (items.length) return { items, note: `출처: ${used.map((l) => l.label).join(" · ")}${day === kstDay(0) ? "" : " (어제 기사)"}` };
+        }
+        return { items: [], note: "" };
       }
       if (tab.sections) {
         for (const day of [kstDay(0), kstDay(-1)]) {

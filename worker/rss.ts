@@ -67,7 +67,7 @@ export async function fetchRss(url: string, limit: number, clean = false): Promi
       title: strip(tag(it, "title")) || "제목 없음",
       link: safeLink(tag(it, "link"), clean),
       desc: strip(tag(it, "description")).slice(0, 180),
-      pubDate: tag(it, "pubDate"),
+      pubDate: tag(it, "pubDate") || tag(it, "dc:date"),
       image: itemImage(it),
     }));
   } catch {
@@ -332,4 +332,11 @@ function dayOf(raw: string): string {
   }
   const m = s.match(/(\d{4})[-.](\d{2})[-.](\d{2})/);
   return m ? `${m[1]}-${m[2]}-${m[3]}` : "";
+}
+
+// RSS 등 기사 날짜 문자열을 한국 시간 YYYY-MM-DD로 바꾼다. 못 읽으면 빈 값.
+export function pubDay(raw: string): string {
+  if (/\d{4}[-.]\d{2}[-.]\d{2}/.test(raw)) return dayOf(raw);
+  const t = Date.parse(raw);
+  return isNaN(t) ? "" : new Date(t + 9 * 3600 * 1000).toISOString().slice(0, 10);
 }
