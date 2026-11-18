@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { ECO_SOURCES, GROUPS, PREFERRED_PRESS } from "./config";
 import { fetchMarket } from "./market";
 import { fetchWeather } from "./weather";
-import { Article, fetchDaumHeadlines, fetchKoreaList, fetchNaverLatest, fetchHomeTop, kstDay, pubDay, fetchNaverPress, fetchRss, firstWithItems } from "./rss";
+import { Article, fetchArticleSummary, fetchDaumHeadlines, fetchKoreaList, fetchNaverLatest, fetchHomeTop, kstDay, pubDay, fetchNaverPress, fetchRss, firstWithItems } from "./rss";
 
 const app = new Hono();
 app.use("/api/*", cors({ origin: ["https://profguclass.github.io"], allowMethods: ["GET"] }));
@@ -38,6 +38,22 @@ app.get("/api/weather", (c) => cached(c, "weather", 600, fetchWeather));
 app.get("/api/market", (c) =>
   cached(c, "market", 45, fetchMarket, (v) => Object.values(v.quotes).some((q: any) => !q.error)),
 );
+
+app.get("/api/article", async (c) => {
+  const raw = c.req.query("url") ?? "";
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return c.json({ error: "bad url" }, 400);
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return c.json({ error: "bad url" }, 400);
+  try {
+    return c.json(await fetchArticleSummary(u.toString()));
+  } catch {
+    return c.json({ error: "불러오지 못했어요" }, 502);
+  }
+});
 
 app.get("/api/feed/:group/:index", (c) => {
   const tabs = GROUPS[c.req.param("group")];

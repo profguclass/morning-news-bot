@@ -340,3 +340,29 @@ export function pubDay(raw: string): string {
   const t = Date.parse(raw);
   return isNaN(t) ? "" : new Date(t + 9 * 3600 * 1000).toISOString().slice(0, 10);
 }
+
+// 기사 페이지에서 제목, 대표 사진, 첫 다섯 문장만 읽는다(전문은 가져오지 않는다).
+export async function fetchArticleSummary(link: string): Promise<{ title: string; image?: string; sentences: string[]; link: string }> {
+  const r = await fetch(link, { headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" }, signal: AbortSignal.timeout(8000) });
+  if (!r.ok) throw new Error("status " + r.status);
+  const html = (await r.text()).slice(0, 800000);
+  const meta = (prop: string) => {
+    const m = html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"']*)["']`, "i")) ?? html.match(new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+(?:property|name)=["']${prop}["']`, "i"));
+    return m ? decode(m[1]).trim() : "";
+  };
+  const title = meta("og:title") || strip(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "");
+  const paras = [...html.matchAll(/<p[\s>][^>]*>([\s\S]*?)<\/p>/gi)].map((m) => strip(m[1])).filter((t) => t.length >= 20 && !t.includes(title.slice(0, 20)));
+  const sentences: string[] = [];
+  for (const p of paras) {
+    for (const x of p.split(/(?<=[.!?])\s+|(?<=다\.)(?=\S)/)) {
+      const t = x.trim();
+      if (t.length >= 12 && sentences.length < 5) sentences.push(t);
+    }
+    if (sentences.length >= 5) break;
+  }
+  if (!sentences.length) {
+    const d = meta("og:description") || meta("description");
+    if (d) sentences.push(d);
+  }
+  return { title, image: imgUrl(meta("og:image") || undefined), sentences, link: safeLink(link, false) };
+}

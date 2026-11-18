@@ -94,6 +94,38 @@ async function loadMarket(force) {
   }
 }
 
+/* 기사 보기: 제목·대표 사진·첫 다섯 문장만 보여 주고 원문으로 연결 */
+function openReader(n) {
+  const dlg = el("dialog", { class: "reader", "aria-labelledby": "reader-title" });
+  const close = () => dlg.close();
+  dlg.append(
+    el("button", { class: "reader-x", type: "button", "aria-label": "닫기", onclick: close }, "✕"),
+    el("h2", { id: "reader-title" }, n.title),
+    el("p", { class: "cap" }, [n.source, n.pubDate].filter(Boolean).join(" · ")),
+    el("div", { class: "reader-body" }, el("p", { class: "cap" }, "불러오는 중…")),
+    el("div", { class: "reader-foot" },
+      el("a", { class: "btn", href: n.link, target: "_blank", rel: "noopener noreferrer" }, "원문 보기"),
+      el("button", { class: "btn", type: "button", onclick: close }, "닫기")),
+  );
+  dlg.addEventListener("close", () => dlg.remove());
+  dlg.addEventListener("click", (e) => { if (e.target === dlg) close(); });
+  document.body.append(dlg);
+  dlg.showModal();
+  fetch(`/api/article?url=${encodeURIComponent(n.link)}`)
+    .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+    .then((a) => {
+      const body = dlg.querySelector(".reader-body");
+      const parts = [];
+      if (a.image) parts.push(el("img", { class: "reader-img", src: a.image, alt: "", referrerpolicy: "no-referrer", onerror: (e) => e.target.remove() }));
+      if (a.sentences?.length) a.sentences.forEach((t) => parts.push(el("p", {}, t)));
+      else parts.push(el("p", { class: "cap" }, "요약을 가져오지 못했어요. 원문 보기에서 읽어 주세요."));
+      body.replaceChildren(...parts);
+    })
+    .catch(() => {
+      dlg.querySelector(".reader-body").replaceChildren(el("p", { class: "cap" }, "기사를 불러오지 못했어요. 원문 보기로 열어 주세요."));
+    });
+}
+
 /* 뉴스 탭 */
 const groups = {};
 function renderFeed(panel, data) {
@@ -104,7 +136,7 @@ function renderFeed(panel, data) {
   data.items.forEach((n, i) => {
     const li = el("li", {});
     if (n.image) li.append(el("img", { class: "thumb", src: n.image, alt: "", loading: "lazy", referrerpolicy: "no-referrer", onerror: (e) => e.target.remove() }));
-    li.append(el("a", { href: n.link, target: "_blank", rel: "noopener noreferrer" }, n.title));
+    li.append(el("a", { href: n.link, target: "_blank", rel: "noopener noreferrer", onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); openReader(n); } }, n.title));
     if (n.source) li.append(el("span", { class: "src" }, n.source));
     if (n.pubDate && /^(\d{4}\.\d{2}\.\d{2}|.*(전|방금))$/.test(n.pubDate)) li.append(el("span", { class: "src" }, n.pubDate));
     if (n.desc) li.append(el("p", {}, n.desc));
