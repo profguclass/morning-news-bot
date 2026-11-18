@@ -238,3 +238,68 @@ export async function fetchDaumHeadlines(limit: number): Promise<Article[]> {
     return [];
   }
 }
+
+// 언론사 누리집 첫 화면에서 주요 기사(링크 주소 규칙에 맞는 것)를 위에서부터 읽는다.
+export async function fetchHomeTop(url: string, linkRe: RegExp, base: string, limit: number): Promise<Article[]> {
+  try {
+    const r = await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" }, signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return [];
+    const html = (await r.text()).slice(0, 900000);
+    const byLink = new Map<string, Article>();
+    for (const m of html.matchAll(/<a\b[^>]*?href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)) {
+      const hm = decode(m[1]).match(linkRe);
+      if (!hm) continue;
+      const link = safeLink(new URL(hm[0], base).toString(), false);
+      const inner = m[2];
+      const tt = inner.match(/<[a-z0-9]+[^>]*class="[^"]*(?:tit|headline)[^"]*"[^>]*>([\s\S]*?)<\/[a-z0-9]+>/i);
+      const alt = inner.match(/<img[^>]*alt="([^"]{6,})"/i);
+      const title = (strip(tt ? tt[1] : inner) || (alt ? strip(alt[1]) : "")).replace(/^(동영상 기사|영상|포토)\s+/, "");
+      const im = inner.match(/<img[^>]*?(?:data-src|src)="([^"]+)"/i);
+      const cur = byLink.get(link) ?? { title: "", link, desc: "", pubDate: "" };
+      if (title.length >= 8 && title.length > cur.title.length && title.length < 120) cur.title = title;
+      const image = im && !/^data:/.test(im[1]) ? imgUrl(im[1].startsWith("/") && !im[1].startsWith("//") ? new URL(im[1], base).toString() : im[1]) : undefined;
+      if (image && !cur.image) cur.image = image;
+      byLink.set(link, cur);
+    }
+    const seen = new Set<string>();
+    const out: Article[] = [];
+    for (const a of byLink.values()) {
+      const k = a.title.replace(/[\s\p{P}]/gu, "");
+      if (!a.title || seen.has(k)) continue;
+      seen.add(k);
+      out.push(a);
+      if (out.length >= limit) break;
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+// 사진이 없는 기사는 기사 페이지의 대표 사진(og:image)을 읽어 채운다.
+export async function fillImages(items: Article[]): Promise<Article[]> {
+  return Promise.all(
+    items.map(async (a) => {
+      if (a.image) return a;
+      try {
+        const r = await fetch(a.link, { headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" }, signal: AbortSignal.timeout(8000) });
+        if (!r.ok || !r.body) return a;
+        const reader = r.body.getReader();
+        let html = "";
+        const dec = new TextDecoder();
+        const pick = () => html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+        let m = pick();
+        while (!m && html.length < 400000) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          html += dec.decode(value, { stream: true });
+          m = pick();
+        }
+        reader.cancel().catch(() => {});
+        return { ...a, image: imgUrl(m?.[1]) };
+      } catch {
+        return a;
+      }
+    }),
+  );
+}
