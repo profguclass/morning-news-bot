@@ -27,6 +27,8 @@ tr.down td:nth-child(n+3){color:var(--down);font-weight:700}
 .tab:focus-visible,.btn:focus-visible{outline:2px solid #fff;outline-offset:2px}
 ol{margin:0;padding-left:1.4em}
 li{margin-bottom:12px}
+li:has(.thumb){overflow:hidden}
+.thumb{float:right;width:96px;height:64px;object-fit:cover;border-radius:8px;margin:0 0 6px 12px;background:var(--line)}
 li p{margin:2px 0 0;color:var(--mut);font-size:.86rem}
 a{color:var(--fg)} a:hover{color:var(--acc)}
 .src{font-size:.75rem;color:var(--mut);border:1px solid var(--line);border-radius:6px;padding:0 6px;margin-left:4px}

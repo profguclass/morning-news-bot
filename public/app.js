@@ -102,7 +102,9 @@ function renderFeed(panel, data) {
   if (data.note) parts.push(el("p", { class: "cap" }, data.note));
   const ol = el("ol", {});
   data.items.forEach((n, i) => {
-    const li = el("li", {}, el("a", { href: n.link, target: "_blank", rel: "noopener noreferrer" }, n.title));
+    const li = el("li", {});
+    if (n.image) li.append(el("img", { class: "thumb", src: n.image, alt: "", loading: "lazy", referrerpolicy: "no-referrer", onerror: (e) => e.target.remove() }));
+    li.append(el("a", { href: n.link, target: "_blank", rel: "noopener noreferrer" }, n.title));
     if (n.source) li.append(el("span", { class: "src" }, n.source));
     if (n.pubDate && /^(\d{4}\.\d{2}\.\d{2}|.*(전|방금))$/.test(n.pubDate)) li.append(el("span", { class: "src" }, n.pubDate));
     if (n.desc) li.append(el("p", {}, n.desc));

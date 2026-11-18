@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { ECO_SOURCES, GROUPS, PREFERRED_PRESS } from "./config";
 import { fetchMarket } from "./market";
 import { fetchWeather } from "./weather";
-import { Article, fetchDaumHeadlines, fetchKoreaList, fetchNaverLatest, fetchRss, firstWithItems } from "./rss";
+import { Article, fetchDaumHeadlines, fetchKoreaList, fetchNaverLatest, fetchNaverPress, fetchRss, firstWithItems } from "./rss";
 
 const app = new Hono();
 app.use("/api/*", cors({ origin: ["https://profguclass.github.io"], allowMethods: ["GET"] }));
@@ -69,6 +69,10 @@ app.get("/api/feed/:group/:index", (c) => {
         const items: Article[] = [];
         for (let i = 0; i < tab.limit; i++) for (const l of used) if (l.items[i]) items.push({ ...l.items[i], source: l.label });
         return { items, note: used.length ? `출처: ${used.map((l) => l.label).join(" · ")}` : "" };
+      }
+      if (tab.press) {
+        const items = await fetchNaverPress(tab.press, tab.limit);
+        if (items.length) return { items, note: `출처: 네이버 뉴스 ${tab.name} 최신 기사` };
       }
       if (tab.korea) return { items: await fetchKoreaList(tab.urls[0], tab.limit), note: "" };
       return { items: await firstWithItems(tab.urls, tab.limit, tab.clean), note: "" };

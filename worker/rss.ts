@@ -1,4 +1,4 @@
-export type Article = { title: string; link: string; desc: string; pubDate: string; source?: string };
+export type Article = { title: string; link: string; desc: string; pubDate: string; source?: string; image?: string };
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -35,6 +35,28 @@ function safeLink(raw: string, clean: boolean): string {
   }
 }
 
+function imgUrl(raw?: string | null): string | undefined {
+  if (!raw) return undefined;
+  try {
+    const u = new URL(decode(raw.trim()), "https://x.invalid");
+    const abs = raw.trim().startsWith("//") ? new URL("https:" + decode(raw.trim())) : u;
+    if (abs.hostname === "x.invalid") return undefined;
+    if (abs.protocol === "http:") abs.protocol = "https:";
+    return abs.protocol === "https:" ? abs.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+function itemImage(it: string): string | undefined {
+  const enc = it.match(/<enclosure[^>]*url=["']([^"']+)["'][^>]*>/i);
+  if (enc && !/type=["'](?!image)/i.test(enc[0])) return imgUrl(enc[1]);
+  const media = it.match(/<media:(?:content|thumbnail)[^>]*url=["']([^"']+)["']/i);
+  if (media) return imgUrl(media[1]);
+  const html = decode(it.replace(/<!\[CDATA\[|\]\]>/g, ""));
+  const img = html.match(/<img[^>]+src=["']?([^"' >]+)/i);
+  return img ? imgUrl(img[1]) : undefined;
+}
+
 export async function fetchRss(url: string, limit: number, clean = false): Promise<Article[]> {
   try {
     const r = await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" }, signal: AbortSignal.timeout(6000) });
@@ -46,6 +68,7 @@ export async function fetchRss(url: string, limit: number, clean = false): Promi
       link: safeLink(tag(it, "link"), clean),
       desc: strip(tag(it, "description")).slice(0, 180),
       pubDate: tag(it, "pubDate"),
+      image: itemImage(it),
     }));
   } catch {
     return [];
@@ -93,6 +116,51 @@ export async function fetchKoreaList(url: string, limit: number): Promise<Articl
 }
 
 const PORTAL_UA = UA;
+const naverThumb = (u: string) => imgUrl(u.replace(/type=nf\d+_\d+/, "type=nf220_150"));
+
+// "12분전", "2026.11.17. 오후 8:14" 같은 표기를 시각(ms)으로 바꾼다. 읽지 못하면 0.
+function naverTime(t: string): number {
+  const rel = t.match(/(\d+)\s*(분|시간|일)\s*전/);
+  if (rel) return Date.now() - Number(rel[1]) * { 분: 6e4, 시간: 36e5, 일: 864e5 }[rel[2] as "분"];
+  const m = t.match(/(\d{4})\.(\d{2})\.(\d{2})\.\s*(오전|오후)\s*(\d+):(\d+)/);
+  if (!m) return 0;
+  const h = (Number(m[5]) % 12) + (m[4] === "오후" ? 12 : 0);
+  return Date.UTC(+m[1], +m[2] - 1, +m[3], h - 9, +m[6]);
+}
+
+// 네이버 뉴스의 언론사별 최신 기사(EUC-KR). oid는 언론사 번호.
+export async function fetchNaverPress(oid: string, limit: number): Promise<Article[]> {
+  try {
+    const r = await fetch(`https://news.naver.com/main/list.naver?mode=LPOD&mid=sec&oid=${oid}&listType=summary`, {
+      headers: { "User-Agent": PORTAL_UA, "Accept-Language": "ko-KR,ko;q=0.9" },
+      signal: AbortSignal.timeout(7000),
+    });
+    if (!r.ok) return [];
+    const html = new TextDecoder("euc-kr").decode(await r.arrayBuffer());
+    const out: Article[] = [];
+    const seen = new Set<string>();
+    for (const li of html.match(/<li[^>]*>\s*<dl>[\s\S]*?<\/dl>/g) ?? []) {
+      const a = li.match(/<dt>\s*<a href="(https:\/\/n\.news\.naver\.com\/[^"]+)"[^>]*>\s*([^<]+?)\s*<\/a>/);
+      if (!a) continue;
+      const title = strip(a[2]);
+      if (seen.has(title)) continue;
+      seen.add(title);
+      const lede = li.match(/<span class="lede">([\s\S]*?)<\/span>/);
+      const date = li.match(/<span class="date[^"]*">([^<]*)<\/span>/);
+      const im = li.match(/<img src="([^"]+)"/);
+      out.push({
+        title,
+        link: safeLink(decode(a[1]), false),
+        desc: lede ? strip(lede[1]).replace(/\s*…$/, "…").slice(0, 160) : "",
+        pubDate: date ? decode(date[1]).trim() : "",
+        image: im ? naverThumb(im[1]) : undefined,
+      });
+    }
+    return out.map((x, k) => [x, k] as const).sort((a, b) => naverTime(b[0].pubDate) - naverTime(a[0].pubDate) || a[1] - b[1]).map(([x]) => x).slice(0, limit);
+  } catch {
+    return [];
+  }
+}
 
 // 네이버 뉴스 최신 목록(EUC-KR). pages 쪽수만큼 이어서 읽는다.
 export async function fetchNaverLatest(pages = 1): Promise<Article[]> {
@@ -123,7 +191,9 @@ export async function fetchNaverLatest(pages = 1): Promise<Article[]> {
       const lede = li.match(/<span class="lede">([\s\S]*?)<\/span>/);
       const src = li.match(/<span class="writing">([^<]*)<\/span>/);
       const date = li.match(/<span class="date[^"]*">([^<]*)<\/span>/);
+      const im = li.match(/<img src="([^"]+)"/);
       out.push({
+        image: im ? naverThumb(im[1]) : undefined,
         title: strip(a[2]),
         link: safeLink(decode(a[1]), false),
         desc: lede ? strip(lede[1]).replace(/\s*…$/, "…").slice(0, 160) : "",
@@ -152,7 +222,9 @@ export async function fetchDaumHeadlines(limit: number): Promise<Article[]> {
       if (!href || !title) continue;
       const desc = li.match(/<p class="desc_txt">([\s\S]*?)<\/p>/);
       const info = [...li.matchAll(/<span class="txt_info">([^<]*)<\/span>/g)].map((x) => decode(x[1]).trim());
+      const srcs = [...li.matchAll(/srcset="([^"]+)"/g)].map((x) => x[1]).filter((x) => !/webp/.test(x));
       out.push({
+        image: imgUrl(srcs[0]),
         title: strip(title[1]),
         link: href[1],
         desc: desc ? strip(desc[1]).slice(0, 160) : "",
