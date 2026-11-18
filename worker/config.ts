@@ -92,10 +92,10 @@ export const GROUPS: Record<string, Tab[]> = {
     { name: "Korea Times", urls: ["https://feed.koreatimes.co.kr/k/allnews.xml"], limit: 10 },
   ],
   kr: [
-    { name: "📰 종합 주요뉴스", urls: [], limit: 14, sections: [...TOP_ALL] },
-    { name: "💼 경제 주요뉴스", urls: [], limit: 12, sections: sec("economy") },
-    { name: "🏛 정치 주요뉴스", urls: [], limit: 12, sections: sec("politics") },
-    { name: "👥 사회 주요뉴스", urls: [], limit: 12, sections: sec("society") },
+    { name: "📰 종합", urls: [], limit: 14, sections: [...TOP_ALL] },
+    { name: "💼 경제", urls: [], limit: 12, sections: sec("economy") },
+    { name: "🏛 정치", urls: [], limit: 12, sections: sec("politics") },
+    { name: "👥 사회", urls: [], limit: 12, sections: sec("society") },
     {
       name: "🌐 세계", urls: [], limit: 3,
       multi: [
