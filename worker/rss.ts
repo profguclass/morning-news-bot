@@ -240,7 +240,7 @@ export async function fetchDaumHeadlines(limit: number): Promise<Article[]> {
 }
 
 // 언론사 누리집 첫 화면에서 주요 기사(링크 주소 규칙에 맞는 것)를 위에서부터 읽는다.
-export async function fetchHomeTop(url: string, linkRe: RegExp, base: string, limit: number, day: string = kstDay()): Promise<Article[]> {
+export async function fetchHomeTop(url: string, linkRe: RegExp, base: string, limit: number, days: string[] = [kstDay()]): Promise<Article[]> {
   try {
     const r = await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" }, signal: AbortSignal.timeout(8000) });
     if (!r.ok) return [];
@@ -272,12 +272,14 @@ export async function fetchHomeTop(url: string, linkRe: RegExp, base: string, li
     }
     const metas = await Promise.all(cands.map((a) => articleMeta(a.link)));
     const out: Article[] = [];
-    cands.forEach((a, i) => {
-      const meta = metas[i];
-      if (!meta.day || meta.day !== day) return;
-      out.push({ ...a, pubDate: meta.day, image: a.image ?? meta.image });
-    });
-    return out.slice(0, limit);
+    for (const day of days) {
+      let n = 0;
+      cands.forEach((a, i) => {
+        const meta = metas[i];
+        if (meta.day === day && n++ < limit) out.push({ ...a, pubDate: meta.day, image: a.image ?? meta.image });
+      });
+    }
+    return out;
   } catch {
     return [];
   }
@@ -289,7 +291,15 @@ export function kstDay(offset = 0): string {
 }
 
 // 기사 페이지에서 발행일(한국 시간 기준 YYYY-MM-DD)과 대표 사진을 읽는다. 날짜를 못 읽으면 day는 빈 값.
+const metaCache = new Map<string, { day: string; image?: string; at: number }>();
 async function articleMeta(link: string): Promise<{ day: string; image?: string }> {
+  const hit = metaCache.get(link);
+  if (hit && Date.now() - hit.at < 6 * 3600 * 1000) return hit;
+  const meta = await readArticleMeta(link);
+  if (meta.day) metaCache.set(link, { ...meta, at: Date.now() });
+  return meta;
+}
+async function readArticleMeta(link: string): Promise<{ day: string; image?: string }> {
   try {
     const r = await fetch(link, { headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" }, signal: AbortSignal.timeout(8000) });
     if (!r.ok || !r.body) return { day: "" };
