@@ -67,7 +67,7 @@ export async function fetchRss(url: string, limit: number, clean = false): Promi
       title: strip(tag(it, "title")) || "제목 없음",
       link: safeLink(tag(it, "link"), clean),
       desc: strip(tag(it, "description")).slice(0, 180),
-      pubDate: tag(it, "pubDate"),
+      pubDate: tag(it, "pubDate") || tag(it, "dc:date"),
       image: itemImage(it),
     }));
   } catch {
@@ -240,7 +240,7 @@ export async function fetchDaumHeadlines(limit: number): Promise<Article[]> {
 }
 
 // 언론사 누리집 첫 화면에서 주요 기사(링크 주소 규칙에 맞는 것)를 위에서부터 읽는다.
-export async function fetchHomeTop(url: string, linkRe: RegExp, base: string, limit: number): Promise<Article[]> {
+export async function fetchHomeTop(url: string, linkRe: RegExp, base: string, limit: number, day: string = kstDay()): Promise<Article[]> {
   try {
     const r = await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" }, signal: AbortSignal.timeout(8000) });
     if (!r.ok) return [];
@@ -271,11 +271,10 @@ export async function fetchHomeTop(url: string, linkRe: RegExp, base: string, li
       if (cands.length >= limit + 8) break;
     }
     const metas = await Promise.all(cands.map((a) => articleMeta(a.link)));
-    const today = kstToday();
     const out: Article[] = [];
     cands.forEach((a, i) => {
       const meta = metas[i];
-      if (!meta.day || meta.day !== today) return;
+      if (!meta.day || meta.day !== day) return;
       out.push({ ...a, pubDate: meta.day, image: a.image ?? meta.image });
     });
     return out.slice(0, limit);
@@ -285,8 +284,8 @@ export async function fetchHomeTop(url: string, linkRe: RegExp, base: string, li
 }
 
 // 한국 시간 기준 오늘 날짜(YYYY-MM-DD)
-function kstToday(): string {
-  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+export function kstDay(offset = 0): string {
+  return new Date(Date.now() + (9 + offset * 24) * 3600 * 1000).toISOString().slice(0, 10);
 }
 
 // 기사 페이지에서 발행일(한국 시간 기준 YYYY-MM-DD)과 대표 사진을 읽는다. 날짜를 못 읽으면 day는 빈 값.
@@ -333,4 +332,11 @@ function dayOf(raw: string): string {
   }
   const m = s.match(/(\d{4})[-.](\d{2})[-.](\d{2})/);
   return m ? `${m[1]}-${m[2]}-${m[3]}` : "";
+}
+
+// RSS 등 기사 날짜 문자열을 한국 시간 YYYY-MM-DD로 바꾼다. 못 읽으면 빈 값.
+export function pubDay(raw: string): string {
+  if (/\d{4}[-.]\d{2}[-.]\d{2}/.test(raw)) return dayOf(raw);
+  const t = Date.parse(raw);
+  return isNaN(t) ? "" : new Date(t + 9 * 3600 * 1000).toISOString().slice(0, 10);
 }
