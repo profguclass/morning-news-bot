@@ -240,7 +240,7 @@ export async function fetchDaumHeadlines(limit: number): Promise<Article[]> {
 }
 
 // 언론사 누리집 첫 화면에서 주요 기사(링크 주소 규칙에 맞는 것)를 위에서부터 읽는다.
-export async function fetchHomeTop(url: string, linkRe: RegExp, base: string, limit: number): Promise<Article[]> {
+export async function fetchHomeTop(url: string, linkRe: RegExp, base: string, limit: number, day: string = kstDay()): Promise<Article[]> {
   try {
     const r = await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" }, signal: AbortSignal.timeout(8000) });
     if (!r.ok) return [];
@@ -271,11 +271,10 @@ export async function fetchHomeTop(url: string, linkRe: RegExp, base: string, li
       if (cands.length >= limit + 8) break;
     }
     const metas = await Promise.all(cands.map((a) => articleMeta(a.link)));
-    const today = kstToday();
     const out: Article[] = [];
     cands.forEach((a, i) => {
       const meta = metas[i];
-      if (!meta.day || meta.day !== today) return;
+      if (!meta.day || meta.day !== day) return;
       out.push({ ...a, pubDate: meta.day, image: a.image ?? meta.image });
     });
     return out.slice(0, limit);
@@ -285,8 +284,8 @@ export async function fetchHomeTop(url: string, linkRe: RegExp, base: string, li
 }
 
 // 한국 시간 기준 오늘 날짜(YYYY-MM-DD)
-function kstToday(): string {
-  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+export function kstDay(offset = 0): string {
+  return new Date(Date.now() + (9 + offset * 24) * 3600 * 1000).toISOString().slice(0, 10);
 }
 
 // 기사 페이지에서 발행일(한국 시간 기준 YYYY-MM-DD)과 대표 사진을 읽는다. 날짜를 못 읽으면 day는 빈 값.

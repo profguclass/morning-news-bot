@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { ECO_SOURCES, GROUPS, PREFERRED_PRESS } from "./config";
 import { fetchMarket } from "./market";
 import { fetchWeather } from "./weather";
-import { Article, fetchDaumHeadlines, fetchKoreaList, fetchNaverLatest, fetchHomeTop, fetchNaverPress, fetchRss, firstWithItems } from "./rss";
+import { Article, fetchDaumHeadlines, fetchKoreaList, fetchNaverLatest, fetchHomeTop, kstDay, fetchNaverPress, fetchRss, firstWithItems } from "./rss";
 
 const app = new Hono();
 app.use("/api/*", cors({ origin: ["https://profguclass.github.io"], allowMethods: ["GET"] }));
@@ -71,23 +71,27 @@ app.get("/api/feed/:group/:index", (c) => {
         return { items, note: used.length ? `출처: ${used.map((l) => l.label).join(" · ")}` : "" };
       }
       if (tab.sections) {
-        const lists = await Promise.all(tab.sections.map(async (x) => ({ label: x.label, items: await fetchHomeTop(x.url, new RegExp(x.re), x.base, 4) })));
-        const used = lists.filter((l) => l.items.length);
-        const seen = new Set<string>();
-        let items: Article[] = [];
-        for (let i = 0; i < 4; i++) for (const l of used) if (l.items[i] && !seen.has(l.items[i].link)) { seen.add(l.items[i].link); items.push({ ...l.items[i], source: l.label }); }
-        items = items.slice(0, tab.limit);
-        return { items, note: used.length ? `출처: ${used.map((l) => l.label).join(" · ")} 누리집의 주요 기사` : "" };
+        for (const day of [kstDay(0), kstDay(-1)]) {
+          const lists = await Promise.all(tab.sections.map(async (x) => ({ label: x.label, items: await fetchHomeTop(x.url, new RegExp(x.re), x.base, 4, day) })));
+          const used = lists.filter((l) => l.items.length);
+          const seen = new Set<string>();
+          let items: Article[] = [];
+          for (let i = 0; i < 4; i++) for (const l of used) if (l.items[i] && !seen.has(l.items[i].link)) { seen.add(l.items[i].link); items.push({ ...l.items[i], source: l.label }); }
+          items = items.slice(0, tab.limit);
+          if (items.length) return { items, note: `출처: ${used.map((l) => l.label).join(" · ")} 누리집의 주요 기사${day === kstDay(0) ? "" : " (어제 기사)"}` };
+        }
       }
       if (tab.home) {
         const re = new RegExp(tab.home.re);
         const urls = [tab.home.url, ...(tab.home.more ?? [])];
-        const lists = await Promise.all(urls.map((u) => fetchHomeTop(u, re, tab.home!.base, tab.limit)));
-        const seen = new Set<string>();
-        let items: Article[] = [];
-        for (let i = 0; i < tab.limit; i++) for (const l of lists) if (l[i] && !seen.has(l[i].link)) { seen.add(l[i].link); items.push(l[i]); }
-        items = items.slice(0, tab.limit);
-        if (items.length >= 3) return { items, note: `출처: ${tab.name} 누리집의 주요 기사` };
+        for (const day of [kstDay(0), kstDay(-1)]) {
+          const lists = await Promise.all(urls.map((u) => fetchHomeTop(u, re, tab.home!.base, tab.limit, day)));
+          const seen = new Set<string>();
+          let items: Article[] = [];
+          for (let i = 0; i < tab.limit; i++) for (const l of lists) if (l[i] && !seen.has(l[i].link)) { seen.add(l[i].link); items.push(l[i]); }
+          items = items.slice(0, tab.limit);
+          if (items.length >= 3) return { items, note: `출처: ${tab.name} 누리집의 주요 기사${day === kstDay(0) ? "" : " (어제 기사)"}` };
+        }
       }
       if (tab.press) {
         const items = await fetchNaverPress(tab.press, tab.limit);
