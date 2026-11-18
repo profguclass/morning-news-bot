@@ -37,9 +37,29 @@ export const COMMODITIES: Record<string, [string, number]> = {
 // 뉴스속보에서 먼저 보여 줄 언론사(공백 무시하고 비교)
 export const PREFERRED_PRESS = ["주간경향", "동아사이언스", "경향신문", "한겨레21", "KBS", "MBC", "JTBC", "오마이뉴스", "뉴스타파", "월간산", "동아일보", "조선일보", "한겨레", "프레시안", "시사IN"];
 
-export type Tab = { name: string; urls: string[]; limit: number; clean?: boolean; eco?: boolean; korea?: boolean; press?: string; home?: { url: string; re: string; base: string; more?: string[] }; portal?: "naver" | "naverFlash" | "daum"; ttl?: number; multi?: [string, string][] };
+export type Tab = { name: string; urls: string[]; limit: number; clean?: boolean; eco?: boolean; korea?: boolean; press?: string; sections?: { label: string; url: string; re: string; base: string }[]; home?: { url: string; re: string; base: string; more?: string[] }; portal?: "naver" | "naverFlash" | "daum"; ttl?: number; multi?: [string, string][] };
 const gn = (q: string) => `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=ko&gl=KR&ceid=KR:ko`;
 const gnTopic = (t: string) => `https://news.google.com/rss/headlines/section/topic/${t}?hl=ko&gl=KR&ceid=KR:ko`;
+
+type Sec = { label: string; url: string; re: string; base: string };
+const OUT: Record<string, { re: string; base: string; paths: Record<string, string> }> = {
+  조선일보: { re: "/[a-z_-]+/[a-z_-]+/20\\d\\d/\\d\\d/\\d\\d/[A-Z0-9]{20,}/?", base: "https://www.chosun.com", paths: { economy: "/economy/", politics: "/politics/", society: "/national/" } },
+  동아일보: { re: "/news/[A-Za-z]+/article/[a-z]+/20\\d{6}/\\d+(?:/\\d+)?", base: "https://www.donga.com", paths: { economy: "/news/Economy", politics: "/news/Politics", society: "/news/Society" } },
+  한겨레: { re: "/arti/[a-z/_]+/\\d+\\.html", base: "https://www.hani.co.kr", paths: { economy: "/arti/economy", politics: "/arti/politics", society: "/arti/society" } },
+  경향신문: { re: "/article/\\d{10,}", base: "https://www.khan.co.kr", paths: { economy: "/economy", politics: "/politics", society: "/national" } },
+  SBS: { re: "/news/endPage\\.do\\?news_id=N\\d+", base: "https://news.sbs.co.kr", paths: { politics: "/news/newsSection.do?sectionType=01", economy: "/news/newsSection.do?sectionType=02", society: "/news/newsSection.do?sectionType=03" } },
+  MBC: { re: "/news/20\\d\\d/[a-z]+/article/\\d+_\\d+\\.html", base: "https://imnews.imbc.com", paths: { politics: "/news/2026/politics/", economy: "/news/2026/econo/", society: "/news/2026/society/" } },
+};
+// 주요 언론사의 분야별 주요 기사 면
+const sec = (kind: string): Sec[] => Object.entries(OUT).map(([label, o]) => ({ label, url: o.base + o.paths[kind], re: o.re, base: o.base }));
+// 주요 언론사 누리집 첫 화면
+const TOP_ALL: Sec[] = [
+  ["조선일보", "https://www.chosun.com/"], ["동아일보", "https://www.donga.com/"], ["한겨레", "https://www.hani.co.kr/"], ["경향신문", "https://www.khan.co.kr/"],
+  ["SBS", "https://news.sbs.co.kr/news/newsMain.do"], ["JTBC", "https://news.jtbc.co.kr/"], ["KBS", "https://news.kbs.co.kr/news/pc/main/main.html"],
+].map(([label, url]) => {
+  const o = OUT[label];
+  return { label, url, re: o ? o.re : label === "JTBC" ? "/article/NB\\d+" : "/news/pc/view/view\\.do\\?ncd=\\d+", base: o ? o.base : label === "JTBC" ? "https://news.jtbc.co.kr" : "https://news.kbs.co.kr" };
+});
 
 export const GROUPS: Record<string, Tab[]> = {
   flash: [
@@ -72,10 +92,10 @@ export const GROUPS: Record<string, Tab[]> = {
     { name: "Korea Times", urls: ["https://feed.koreatimes.co.kr/k/allnews.xml"], limit: 10 },
   ],
   kr: [
-    { name: "🔴 종합속보", urls: ["https://www.yna.co.kr/rss/news.xml", gn("속보 when:1h"), gn("속보 when:3h"), "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko"], limit: 10 },
-    { name: "💼 경제속보", urls: [], limit: 5, eco: true },
-    { name: "🔴 정치속보", urls: ["https://www.yna.co.kr/rss/politics.xml", gn("정치 속보 when:1h"), gn("정치 when:3h"), gnTopic("POLITICS")], limit: 10 },
-    { name: "🔴 사회속보", urls: ["https://www.yna.co.kr/rss/society.xml", gn("사회 속보 when:1h"), gn("사건 사고 when:3h"), gnTopic("NATION")], limit: 10 },
+    { name: "📰 종합 주요뉴스", urls: [], limit: 14, sections: [...TOP_ALL] },
+    { name: "💼 경제 주요뉴스", urls: [], limit: 12, sections: sec("economy") },
+    { name: "🏛 정치 주요뉴스", urls: [], limit: 12, sections: sec("politics") },
+    { name: "👥 사회 주요뉴스", urls: [], limit: 12, sections: sec("society") },
     {
       name: "🌐 세계", urls: [], limit: 3,
       multi: [
